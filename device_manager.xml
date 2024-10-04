@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="iso-8859-1"?>
+<!--Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.   -->
+<!--SPDX-License-Identifier: BSD-3-Clause-Clear                                -->
+
+<devices>
+    <device>
+        <name>HAR_PAL_DEVICE_OUT_SPEAKER_WS</name>
+        <id>2</id>
+        <Bus_Address>BUS00_WS</Bus_Address>
+    </device>
+    <device>
+        <name>HAR_PAL_DEVICE_OUT_SPEAKER_V_WARN</name>
+        <id>3</id>
+        <Bus_Address>BUS01_no_ASIL</Bus_Address>
+    </device>
+    <device>
+        <name>HAR_PAL_DEVICE_OUT_SPEAKER_ROAD_ADAS</name>
+        <id>4</id>
+        <Bus_Address>BUS02_Road_ADAS</Bus_Address>
+    </device>
+    <device>
+        <name>HAR_PAL_DEVICE_OUT_SPEAKER_S_WARN</name>
+        <id>5</id>
+        <Bus_Address>BUS03_ASIL</Bus_Address>
+    </device>
+</devices>

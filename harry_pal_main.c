@@ -718,10 +718,6 @@ int32_t StopAndCloseUsecase(struct PlatformAudioDevices *har_pal)
         }
 
         stream_started = 0;
-        if (pal_init_status == 1) {
-            pal_deinit();
-        }
-        pal_init_status--;
 
       pal_stream_handle = NULL;
     }

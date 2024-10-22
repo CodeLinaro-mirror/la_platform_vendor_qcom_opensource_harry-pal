@@ -24,6 +24,27 @@
 
 #define MAX_ADDRESS_LEN 100
 
+
+struct riff_wave_header {
+    uint32_t riff_id;
+    uint32_t riff_sz;
+    uint32_t wave_id;
+};
+
+struct chunk_header {
+    uint32_t id;
+    uint32_t sz;
+};
+
+struct chunk_fmt {
+    uint16_t audio_format;
+    uint16_t num_channels;
+    uint32_t sample_rate;
+    uint32_t byte_rate;
+    uint16_t block_align;
+    uint16_t bits_per_sample;
+};
+
 struct PlatformAudioDevices {
     /// The Sound Card number and device number to play to,
     /// run "aplay -l" from "apt get alsa-tools" to list devices)
@@ -192,6 +213,7 @@ IntVector parse_device_id(const char* filename);
 IntVector available_devices();
 void channel_map(uint8_t* ch_map, int channels);
 uint32_t Open_Device(struct PlatformAudioDevices *har_pal);
+void sample_write(FILE *file, struct chunk_fmt fmt);
 int32_t StopAndCloseUsecase(struct PlatformAudioDevices *har_pal);
 uint32_t buffer_size_bytes(struct PlatformAudioDevices *har_pal);
 ssize_t try_play_bytes(struct PlatformAudioDevices *har_pal,void *buffer,int bytes);

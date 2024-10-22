@@ -44,5 +44,32 @@ LOCAL_C_INCLUDES     += system/media/audio_utils/include
 
 include $(BUILD_SHARED_LIBRARY)
 
+include $(CLEAR_VARS)
+LOCAL_USE_VNDK := true
+
+LOCAL_C_INCLUDES     := $(TOP)/vendor/qcom/opensource/pal
+LOCAL_C_INCLUDES     += $(TOP)/system/media/audio/include
+LOCAL_C_INCLUDES     += $(TOP)/system/media/audio_route/include
+LOCAL_C_INCLUDES     += $(TOP)/external/expat/lib/expat.h
+
+LOCAL_CFLAGS += -Wno-tautological-compare
+LOCAL_CFLAGS += -Wno-macro-redefined
+
+LOCAL_SRC_FILES  := harry_pal_test.c
+
+LOCAL_MODULE               := HarPalTest
+LOCAL_MODULE_OWNER         := qti
+LOCAL_MODULE_TAGS          := optional
+
+LOCAL_SHARED_LIBRARIES := \
+                          libhar-pal \
+                          libexpat \
+                          libcutils \
+                          liblog
+
+LOCAL_VENDOR_MODULE := true
+
+include $(BUILD_EXECUTABLE)
+
 endif #TARGET_USES_QCOM_MM_AUDIO
 endif #AUDIO_USE_STUB_HAL

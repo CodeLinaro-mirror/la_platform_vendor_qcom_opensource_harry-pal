@@ -196,3 +196,4 @@ int32_t StopAndCloseUsecase(struct PlatformAudioDevices *har_pal);
 uint32_t buffer_size_bytes(struct PlatformAudioDevices *har_pal);
 ssize_t try_play_bytes(struct PlatformAudioDevices *har_pal,void *buffer,int bytes);
 uint32_t playback_rate(struct PlatformAudioDevices *har_pal);
+int32_t set_volume(struct PlatformAudioDevices *har_pal, float volume);

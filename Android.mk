@@ -32,7 +32,6 @@ LOCAL_SHARED_LIBRARIES := \
                           libdl \
                           libexpat \
                           liblog \
-                          lib_default_plugin_controls \
                           libar-pal
 
 LOCAL_C_INCLUDES     := $(LOCAL_PATH)/

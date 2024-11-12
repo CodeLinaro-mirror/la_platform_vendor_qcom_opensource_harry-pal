@@ -403,6 +403,7 @@ char* parse_bus_address(const char *filename, int target_id) {
 /*Opens the given Audio Device, ensuring it is ready to play sound.
  *This function further calls pal_init(), pal_stream_open(),
  *pal_stream_get_buffer_size() and pal_stream_get_buffer_size().
+ *Further it calls pal_stream_start() as well.
  */
 uint32_t Open_Device(struct PlatformAudioDevices *har_pal) {
 
@@ -530,7 +531,7 @@ uint32_t Open_Device(struct PlatformAudioDevices *har_pal) {
             break;
     }
 
-    // setting device attriutes
+    // setting device attributes
     memset(&pPvtData->devices, 0, sizeof(pPvtData->devices));
     pPvtData->devices.id = pPvtData->deviceId;
     pPvtData->devices.config.ch_info.channels = pPvtData->audioChannels;
@@ -662,8 +663,7 @@ uint32_t playback_rate(struct PlatformAudioDevices *har_pal)
 }
 
 /*This function play a slice of bytes to the given device.
- *This further calls pal_stream_start(if stream is not started) and
- *pal_stream_set_volume (to set default volume in a case where stream is not started.)
+ *This further calls pal_stream_write.
  */
 ssize_t try_play_bytes(struct PlatformAudioDevices *har_pal, void *buffer, int bytes)
 {
@@ -688,6 +688,66 @@ ssize_t try_play_bytes(struct PlatformAudioDevices *har_pal, void *buffer, int b
     ret = pal_stream_write(pal_stream_handle, &palBuffer);
     pthread_mutex_unlock(&lock);
     HAR_PAL_VERBOSE(LOG_TAG,"%s.Bytes Accepted = %d",__func__, ret);
+    free(pPvtData);
+    pPvtData = NULL;
+    return ret;
+}
+
+/*This function sets volume of a particular stream.
+ *This further calls pal_stream_set_volume to set volume.
+ */
+int32_t set_volume(struct PlatformAudioDevices *har_pal, float volume)
+{
+    int ret = 0;
+    pvt_data_t *pPvtData = calloc(1, sizeof(pvt_data_t));
+      if (pPvtData == NULL) {
+            HAR_PAL_ERR(LOG_TAG,"Memory Allocation Failed\n");
+            return -1;
+      }
+
+    HAR_PAL_DBG(LOG_TAG,"%s.Enter",__func__);
+    if (har_pal) {
+       if (har_pal->channels >= HAR_AUDIO_CHANNELS_1 &&
+                har_pal->channels <= HAR_AUDIO_CHANNELS_32) {
+            pPvtData->audioChannels = har_pal->channels;
+            HAR_PAL_VERBOSE(LOG_TAG, "audioChannels = %d", pPvtData->audioChannels);
+        } else {
+            HAR_PAL_ERR(LOG_TAG, "Invalid audio channels configured.Setting to default.");
+            pPvtData->audioChannels = HAR_AUDIO_CHANNELS_2;
+        }
+    }
+    pthread_mutex_lock(&lock);
+    if (volume) {
+       struct pal_volume_data* volume_data = (struct pal_volume_data *) calloc(1,
+                                          sizeof(uint32_t) + (pPvtData->audioChannels * sizeof(struct
+                                                     pal_channel_vol_kv)));
+       if (volume_data == NULL) {
+           HAR_PAL_ERR(LOG_TAG,"Unable to set volume");
+           return -1;
+       } else {
+            if (pPvtData->audioChannels == 1) {
+                volume_data->no_of_volpair = 1;
+                volume_data->volume_pair[0].channel_mask = PAL_CHMAP_CHANNEL_FL;
+                volume_data->volume_pair[0].vol = volume;
+            } else {
+                volume_data->no_of_volpair = 2;
+                volume_data->volume_pair[0].channel_mask = PAL_CHMAP_CHANNEL_FL;
+                volume_data->volume_pair[0].vol = volume;
+                volume_data->volume_pair[1].channel_mask = PAL_CHMAP_CHANNEL_FR;
+                volume_data->volume_pair[1].vol = volume;
+            }
+
+            ret = pal_stream_set_volume(pal_stream_handle, volume_data);
+
+            if (ret) {
+                HAR_PAL_ERR(LOG_TAG,"Pal Stream volume Error (%x)", ret);
+            }
+           free(volume_data);
+           volume_data = NULL;
+       }
+    }
+    pthread_mutex_unlock(&lock);
+    HAR_PAL_DBG(LOG_TAG,"%s.Exit ret %d",__func__, ret);
     free(pPvtData);
     pPvtData = NULL;
     return ret;

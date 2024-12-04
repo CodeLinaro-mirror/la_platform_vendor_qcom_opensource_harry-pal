@@ -112,6 +112,7 @@ int main(int argc, char *argv[])
     int status = 0;
     unsigned int usecase_id;
     int pcm_id;
+    struct PlatformAudioDevices plat_dev;
 
     filename = argv[1];
     file = fopen(filename, "rb");
@@ -178,7 +179,9 @@ int main(int argc, char *argv[])
            fgets(ch, 3, stdin);
            switch (ch[0]) {
             case 's' :
-                har_pal_init.AudioDeviceId = devices.data[0].id;
+                plat_dev = get_audio_device("BUS00_WS");
+                fprintf(stdout, "svels pDevId.AudioDeviceId = %d,",plat_dev.AudioDeviceId );
+                har_pal_init.AudioDeviceId = plat_dev.AudioDeviceId;
                 har_pal_init.channels = 2;
                 fprintf(stdout, "har_pal_init.AudioDeviceId = %d, channels = %d\n", har_pal_init.AudioDeviceId, har_pal_init.channels);
                 status = Open_Device(&har_pal_init);
@@ -192,7 +195,9 @@ int main(int argc, char *argv[])
                 fclose(file);
                     break;
             case 'w' :
-                har_pal_init.AudioDeviceId = devices.data[1].id;
+                plat_dev = get_audio_device("BUS01_no_ASIL");
+                fprintf(stdout, "svels pDevId.AudioDeviceId = %d,",plat_dev.AudioDeviceId );
+                har_pal_init.AudioDeviceId = plat_dev.AudioDeviceId;
                 har_pal_init.channels = 1;
                 fprintf(stdout, "har_pal_init.AudioDeviceId = %d, channels = %d\n", har_pal_init.AudioDeviceId, har_pal_init.channels);
                 status = Open_Device(&har_pal_init);
@@ -206,7 +211,9 @@ int main(int argc, char *argv[])
                 fclose(file);
                 break;
             case 'r' :
-                har_pal_init.AudioDeviceId = devices.data[2].id;
+                plat_dev = get_audio_device("BUS02_Road_ADAS");
+                fprintf(stdout, "svels pDevId.AudioDeviceId = %d,",plat_dev.AudioDeviceId );
+                har_pal_init.AudioDeviceId = plat_dev.AudioDeviceId;
                 har_pal_init.channels = 1;
                 fprintf(stdout, "har_pal_init.AudioDeviceId = %d, channels = %d\n", har_pal_init.AudioDeviceId, har_pal_init.channels);
                 status = Open_Device(&har_pal_init);
@@ -220,7 +227,9 @@ int main(int argc, char *argv[])
                 fclose(file);
                 break;
             case 't' :
-                har_pal_init.AudioDeviceId = devices.data[3].id;
+                plat_dev = get_audio_device("BUS03_ASIL");
+                fprintf(stdout, "svels pDevId.AudioDeviceId = %d,",plat_dev.AudioDeviceId );
+                har_pal_init.AudioDeviceId = plat_dev.AudioDeviceId;
                 har_pal_init.channels = 1;
                 fprintf(stdout, "har_pal_init.AudioDeviceId = %d, channels = %d\n", har_pal_init.AudioDeviceId, har_pal_init.channels);
                 status = Open_Device(&har_pal_init);

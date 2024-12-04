@@ -293,6 +293,47 @@ IntVector available_devices() {
     return parse_device_id(filename);
 }
 
+/*New API Introduced in PDK21.
+ *This function parses and returns an AudioDevice for a specific device_id.
+ */
+struct PlatformAudioDevices get_audio_device(const char* device_id) {
+    struct PlatformAudioDevices audio_device;
+    audio_device.channels = 1;
+    int id = -1;
+    IntVector devices = available_devices();
+    pthread_mutex_lock(&lock);
+
+    if (strcmp("BUS00_WS",device_id) == 0) {
+        HAR_PAL_ERR(LOG_TAG,"get_audio_device id= BUS00_WS");
+        audio_device.channels = 2;
+        id = 2;
+    } else if (strcmp("BUS01_no_ASIL",device_id) == 0) {
+        HAR_PAL_ERR(LOG_TAG,"get_audio_device id= BUS01_no_ASIL");
+        id = 3;
+    }else if (strcmp("BUS02_Road_ADAS",device_id) == 0) {
+        HAR_PAL_ERR(LOG_TAG,"get_audio_device id= BUS02_Road_ADAS");
+        id = 4;
+    }else if (strcmp("BUS03_ASIL",device_id) == 0) {
+        HAR_PAL_ERR(LOG_TAG,"get_audio_device id= BUS03_ASIL");
+        id = 5;
+    }
+
+    strlcpy(audio_device.bus_address, device_id, MAX_ADDRESS_LEN);
+    audio_device.AudioDeviceId = id;
+    audio_device.card = 0;
+    audio_device.rate = 48000;
+    audio_device.format = 16;
+    audio_device.start_threshold = 0;
+    audio_device.stop_threshold = 0;
+    audio_device.silence_threshold = 0;
+    audio_device.silence_size = 0;
+    audio_device.avail_min = 0;
+
+    pthread_mutex_unlock(&lock);
+
+    return audio_device;
+}
+
 IntVector parse_device_id(const char* filename) {
     IntVector vec;
     init_vector(&vec);
@@ -314,6 +355,7 @@ IntVector parse_device_id(const char* filename) {
     if (!file) {
         HAR_PAL_ERR(LOG_TAG, "Cannot open file: %s", filename);
         XML_ParserFree(parser);
+        pthread_mutex_unlock(&lock);
         exit(EXIT_FAILURE);
     }
 
@@ -327,6 +369,7 @@ IntVector parse_device_id(const char* filename) {
             fclose(file);
             free_vector(data.vec);
             free(data.vec);
+            pthread_mutex_unlock(&lock);
             exit(EXIT_FAILURE);
        }
     }

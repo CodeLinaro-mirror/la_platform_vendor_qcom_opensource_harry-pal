@@ -51,6 +51,7 @@ struct PlatformAudioDevices {
     uint32_t card;
     uint32_t device;
     int32_t AudioDeviceId;
+    char bus_address[MAX_ADDRESS_LEN];
     /// The number of channels in a frame.
     uint32_t channels;
     /// The number of frames per second.
@@ -211,6 +212,7 @@ void add_element(IntVector *vec, const pal_device_t *value);
 void free_vector(IntVector *vec);
 IntVector parse_device_id(const char* filename);
 IntVector available_devices();
+struct PlatformAudioDevices get_audio_device(const char* device_id);
 void channel_map(uint8_t* ch_map, int channels);
 uint32_t Open_Device(struct PlatformAudioDevices *har_pal);
 void sample_write(FILE *file, struct chunk_fmt fmt);

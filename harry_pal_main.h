@@ -23,7 +23,7 @@
 #define ID_DATA 0x61746164
 
 #define MAX_ADDRESS_LEN 100
-
+#define MAX_DEVICES 4
 
 struct riff_wave_header {
     uint32_t riff_id;
@@ -43,37 +43,6 @@ struct chunk_fmt {
     uint32_t byte_rate;
     uint16_t block_align;
     uint16_t bits_per_sample;
-};
-
-struct PlatformAudioDevices {
-    /// The Sound Card number and device number to play to,
-    /// run "aplay -l" from "apt get alsa-tools" to list devices)
-    uint32_t card;
-    uint32_t device;
-    int32_t AudioDeviceId;
-    char bus_address[MAX_ADDRESS_LEN];
-    /// The number of channels in a frame.
-    uint32_t channels;
-    /// The number of frames per second.
-    uint32_t rate;
-    /// The number of frames in a period.
-    uint32_t period_size;
-    /// The number of periods in a PCM.
-    uint32_t period_count;
-    /// The sample format of a PCM.
-    uint32_t format;
-    /// Properties below are optional, if set to 0 defaults will be used.
-    /// The minimum number of frames required to start the PCM.
-    uint64_t start_threshold;
-    /// The minimum number of frames required to stop the PCM.
-    uint64_t stop_threshold;
-    /// The minimum number of frames to silence the PCM.
-    uint64_t silence_threshold;
-    /// The number of frames to overwrite the playback buffer
-    /// when the playback underrun is greater than the silence threshold.
-    uint64_t silence_size;
-    /// Minimum number of frames required to be available for writes.
-    uint64_t avail_min;
 };
 
 typedef enum {
@@ -112,8 +81,6 @@ typedef enum {
     HAR_AUDIO_BIT_DEPTH_64BIT = 64
 } har_audio_bit_depth_t;
 
-/** Number of channels
- */
 typedef enum {
     /// 1 channel
     HAR_AUDIO_CHANNELS_1  = 1,
@@ -182,42 +149,49 @@ typedef enum {
 } har_audio_channels_t;
 
 typedef struct {
-    char name[50];
-    int id;
+    int32_t device_id;
+    char AudioDeviceId[MAX_ADDRESS_LEN];
     char bus_address[MAX_ADDRESS_LEN];
-} pal_device_t;
+    uint32_t channels;
+    uint32_t sample_rate;
+    uint32_t format;
+    int32_t volume;
+} PlatformAudioDevices;
 
 typedef struct {
-    pal_device_t *data;
-    size_t size;
-    size_t capacity;
-} IntVector;
-
-
-typedef struct {
-    IntVector *vec;
-    char currentElement[50];
-    char temp_data[256];
-    int mode;
-    int tid;
-    int bus_address_found;
-    pal_device_t currentDevice;
-    XML_Parser parser;
+    PlatformAudioDevices devices[MAX_DEVICES];
+    int device_count;
+    char current_element[50];
+    char temp_data[50];
 } XMLData;
 
+typedef enum {
+    Front = 0,
+    FrontLeft = 1,
+    FrontRight = 2,
+    Center = 3, // No spatialization
+    Rear = 4,
+    RearLeft = 5,
+    RearRight = 6,
+    Right = 7,
+    Left = 8
+} Spatialization;
 
-void init_vector(IntVector *vec);
-void resize_vector(IntVector *vec);
-void add_element(IntVector *vec, const pal_device_t *value);
-void free_vector(IntVector *vec);
-IntVector parse_device_id(const char* filename);
-IntVector available_devices();
-struct PlatformAudioDevices get_audio_device(const char* device_id);
+union value {
+    char name[100];
+    int data;
+};
+
+bool parse_device_xml();
+PlatformAudioDevices get_audio_device(const char* device_id);
+PlatformAudioDevices load_default_config(const char* device);
 void channel_map(uint8_t* ch_map, int channels);
-uint32_t Open_Device(struct PlatformAudioDevices *har_pal);
+int32_t Open_Device(PlatformAudioDevices *har_device);
 void sample_write(FILE *file, struct chunk_fmt fmt);
-int32_t StopAndCloseUsecase(struct PlatformAudioDevices *har_pal);
-uint32_t buffer_size_bytes(struct PlatformAudioDevices *har_pal);
-ssize_t try_play_bytes(struct PlatformAudioDevices *har_pal,void *buffer,int bytes);
-uint32_t playback_rate(struct PlatformAudioDevices *har_pal);
-int32_t set_volume(struct PlatformAudioDevices *har_pal, float volume);
+int32_t StopAndCloseUsecase(PlatformAudioDevices *har_device);
+uint32_t buffer_size_bytes(PlatformAudioDevices *har_device);
+ssize_t try_play_bytes(PlatformAudioDevices *har_device,void *buffer,int bytes);
+uint32_t playback_rate(PlatformAudioDevices *har_device);
+int32_t set_volume(PlatformAudioDevices *har_device, float volume);
+uint32_t set_spatialization(PlatformAudioDevices *har_device, Spatialization value);
+uint32_t set_custom_parameter(PlatformAudioDevices *har_device, char *id, union value val);

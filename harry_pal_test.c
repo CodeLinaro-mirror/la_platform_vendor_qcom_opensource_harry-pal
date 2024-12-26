@@ -47,7 +47,7 @@
 
 static int streamClose = 0;
 
-struct PlatformAudioDevices har_pal_init;
+PlatformAudioDevices platform_device;
 
 void sample_write(FILE *file, struct chunk_fmt fmt)
 {
@@ -57,21 +57,21 @@ void sample_write(FILE *file, struct chunk_fmt fmt)
     ssize_t bytes;
     fprintf(stdout, "Enabling write\n");
 
-    size = buffer_size_bytes(&har_pal_init);
+    size = buffer_size_bytes(&platform_device);
     fprintf(stdout, "size = %d\n",size);
     buffer = malloc(size + 10);
     if (!buffer) {
         printf("Unable to allocate %d size\n", size);
     }
 
-    playback_rate(&har_pal_init);
+    playback_rate(&platform_device);
     do {
         num_read = fread(buffer, 1, size, file);
         if (num_read > 0) {
-              if(!try_play_bytes(&har_pal_init, buffer,size)) {
-                  fprintf(stdout, "Error playing sample\n");
-                  break;
-              }
+            if(!try_play_bytes(&platform_device, buffer,size)) {
+                fprintf(stdout, "Error playing sample\n");
+                break;
+            }
         }
     } while (!streamClose && num_read > 0);
 
@@ -83,9 +83,9 @@ void disable_usecase()
 {
     int status =0;
     fprintf(stdout,"Enter Disable_usecase()\n");
-    status = StopAndCloseUsecase(&har_pal_init);
+    status = StopAndCloseUsecase(&platform_device);
     if(status) {
-       fprintf(stdout, "StopAndCloseUsecase failed\n");
+        fprintf(stdout, "StopAndCloseUsecase failed\n");
     }
     fprintf(stdout,"Exit Disable_usecase()\n");
     streamClose = 1;
@@ -104,15 +104,10 @@ int main(int argc, char *argv[])
     struct riff_wave_header riff_wave_header;
     struct chunk_header chunk_header;
     struct chunk_fmt chunk_fmt;
-    const char *pal_dev;
     char *filename;
     int more_chunks = 1;
-    ssize_t ret = 0;
     char ch[3];
     int status = 0;
-    unsigned int usecase_id;
-    int pcm_id;
-    struct PlatformAudioDevices plat_dev;
 
     filename = argv[1];
     file = fopen(filename, "rb");
@@ -149,95 +144,68 @@ int main(int argc, char *argv[])
         }
     } while (more_chunks);
 
-     argv += 2;
+    argv += 2;
 
     //Handling signals
     signal(SIGINT, sigint_handler);
 
-    har_pal_init.card = 0;
-    har_pal_init.rate = 48000;
-    har_pal_init.format = 16;
-    har_pal_init.start_threshold = 0;
-    har_pal_init.stop_threshold = 0;
-    har_pal_init.silence_threshold = 0;
-    har_pal_init.silence_size = 0;
-    har_pal_init.avail_min = 0;
-
-    IntVector devices = available_devices();
-
-    for(size_t i =0; i < devices.size; ++i) {
-     fprintf(stdout, "Device Name: %s, Device Id: %d\n", devices.data[i].name, devices.data[i].id);
-    }
-
     if (argc > 1) {
-       fprintf(stdout, "1.Press 's' to start WelcomeSound Usecase\n"
-                       "2.Press 'w' to start Warning Sound Usecase\n"
-                       "3.Press 'r' to start ROAD_ADAS usecase\n"
-                       "4.Press 't' to start Safety usecase\n"
-                       "5.Press 'c' to close the usecase \n");
-       while (!streamClose) {
+        fprintf(stdout, "1.Press 's' to start WelcomeSound Usecase\n"
+                    "2.Press 'w' to start Warning Sound Usecase\n"
+                    "3.Press 'r' to start ROAD_ADAS usecase\n"
+                    "4.Press 't' to start Safety usecase\n"
+                    "5.Press 'c' to close the usecase \n");
+        while (!streamClose) {
            fgets(ch, 3, stdin);
            switch (ch[0]) {
             case 's' :
-                plat_dev = get_audio_device("BUS00_WS");
-                fprintf(stdout, "svels pDevId.AudioDeviceId = %d,",plat_dev.AudioDeviceId );
-                har_pal_init.AudioDeviceId = plat_dev.AudioDeviceId;
-                har_pal_init.channels = 2;
-                fprintf(stdout, "har_pal_init.AudioDeviceId = %d, channels = %d\n", har_pal_init.AudioDeviceId, har_pal_init.channels);
-                status = Open_Device(&har_pal_init);
+                platform_device = get_audio_device("WELCOME_SEQUENCE");
+                fprintf(stdout, "platform_device.AudioDeviceId = %d, channels = %d\n", platform_device.device_id, platform_device.channels);
+                status = Open_Device(&platform_device);
                 if (status) {
                     printf(stdout, "Open_Device failed\n");
                     break;
                 }
-                set_volume(&har_pal_init, -4000.0);
+                set_volume(&platform_device, -4000.0);
                 sample_write(file,chunk_fmt);
                 disable_usecase();
                 fclose(file);
-                    break;
+                break;
             case 'w' :
-                plat_dev = get_audio_device("BUS01_no_ASIL");
-                fprintf(stdout, "svels pDevId.AudioDeviceId = %d,",plat_dev.AudioDeviceId );
-                har_pal_init.AudioDeviceId = plat_dev.AudioDeviceId;
-                har_pal_init.channels = 1;
-                fprintf(stdout, "har_pal_init.AudioDeviceId = %d, channels = %d\n", har_pal_init.AudioDeviceId, har_pal_init.channels);
-                status = Open_Device(&har_pal_init);
+                platform_device = get_audio_device("WARN");
+                fprintf(stdout, "platform_device.device_id = %d\n", platform_device.device_id);
+                status = Open_Device(&platform_device);
                 if (status) {
                     fprintf(stdout, "Open_Device failed\n");
                     break;
                 }
-                set_volume(&har_pal_init, -4000.0);
+                set_volume(&platform_device, -4000.0);
                 sample_write(file,chunk_fmt);
                 disable_usecase();
                 fclose(file);
                 break;
             case 'r' :
-                plat_dev = get_audio_device("BUS02_Road_ADAS");
-                fprintf(stdout, "svels pDevId.AudioDeviceId = %d,",plat_dev.AudioDeviceId );
-                har_pal_init.AudioDeviceId = plat_dev.AudioDeviceId;
-                har_pal_init.channels = 1;
-                fprintf(stdout, "har_pal_init.AudioDeviceId = %d, channels = %d\n", har_pal_init.AudioDeviceId, har_pal_init.channels);
-                status = Open_Device(&har_pal_init);
+                platform_device = get_audio_device("ROAD-ADAS");
+                fprintf(stdout, "platform_device.device_id = %d\n", platform_device.device_id);
+                status = Open_Device(&platform_device);
                 if (status) {
                     fprintf(stdout, "Open_Device failed\n");
                     break;
                 }
-                set_volume(&har_pal_init, -4000.0);
+                set_volume(&platform_device, -4000.0);
                 sample_write(file,chunk_fmt);
                 disable_usecase();
                 fclose(file);
                 break;
             case 't' :
-                plat_dev = get_audio_device("BUS03_ASIL");
-                fprintf(stdout, "svels pDevId.AudioDeviceId = %d,",plat_dev.AudioDeviceId );
-                har_pal_init.AudioDeviceId = plat_dev.AudioDeviceId;
-                har_pal_init.channels = 1;
-                fprintf(stdout, "har_pal_init.AudioDeviceId = %d, channels = %d\n", har_pal_init.AudioDeviceId, har_pal_init.channels);
-                status = Open_Device(&har_pal_init);
+                platform_device = get_audio_device("SWARN");
+                fprintf(stdout, "platform_device.device_id = %d\n", platform_device.device_id);
+                status = Open_Device(&platform_device);
                 if (status) {
-                        fprintf(stdout, "Open_Device failed\n");
-                        break;
+                    fprintf(stdout, "Open_Device failed\n");
+                    break;
                 }
-                set_volume(&har_pal_init, -4000.0);
+                set_volume(&platform_device, -4000.0);
                 sample_write(file,chunk_fmt);
                 disable_usecase();
                 fclose(file);
@@ -252,7 +220,6 @@ int main(int argc, char *argv[])
                 break;
             }
     }
-    free_vector(&devices);
     return status;
     }
 }

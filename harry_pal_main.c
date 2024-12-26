@@ -18,36 +18,30 @@
 #define PERIOD_COUNT 2
 #define DEFAULT_CARD_ID 0
 
-#define INITIAL_CAPACITY 10
-
 static pal_stream_handle_t *pal_stream_handle;
 struct pal_buffer_config outBufCfg = {0, 0, 0};
 static int pal_init_status = 0;
 
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+static PlatformAudioDevices platform_audio_devices_list[MAX_DEVICES];
 
-uint32_t stream_started = 0;
+uint8_t stream_started = 0;
 
 typedef struct {
-    /////////////
-    // Config data
-    /////////////
-
     // ALSA Device name
     char *pDeviceName;
 
     // map_har_audio_rate
     har_audio_rate_t audioRate;
-
     // map_har_audio_bit_depth
     har_audio_bit_depth_t audioBitDepth;
-
     // map_har_channels
     har_audio_channels_t audioChannels;
-
     uint32_t frames;
-
+    uint32_t deviceId;
+    uint32_t cardId;
     uint32_t buffer_size;
+
     /////////////
     // PAL data
     /////////////
@@ -62,14 +56,8 @@ typedef struct {
     /////////////
     uint32_t alsaPeriodSize;
     uint32_t alsaPeriodCount;
-
-    uint32_t deviceId;
-    uint32_t cardId;
-
     uint32_t alsaStartThreshold;
     uint32_t alsaStopThreshold;
-
-    float volume_level;
 } pvt_data_t;
 
 typedef enum {
@@ -193,173 +181,134 @@ void channel_map(uint8_t* ch_map, int channels)
     }
 }
 
-void init_vector(IntVector *vec) {
-    vec->size = 0;
-    vec->capacity = INITIAL_CAPACITY;
-    vec->data = (pal_device_t*)malloc(vec->capacity * sizeof(pal_device_t));
-    if (vec->data == NULL) {
-        HAR_PAL_ERR(LOG_TAG, "Failed to allocate memory");
-        exit(1);
-    }
-}
-
-void resize_vector(IntVector *vec) {
-    vec->capacity *= 2;
-    vec->data = (pal_device_t *)realloc(vec->data, vec->capacity * sizeof(pal_device_t));
-    if (vec->data == NULL) {
-        HAR_PAL_ERR(LOG_TAG, "Failed to reallocate memory");
-        exit(1);
-    }
-}
-
-void add_element(IntVector *vec, const pal_device_t *value) {
-    if (vec->size == vec->capacity) {
-        resize_vector(vec);
-    }
-    vec->data[vec->size] = *value;
-    vec->size++;
-}
-
-void free_vector(IntVector *vec) {
-    free(vec->data);
-    vec->data = NULL;
-    vec->size = 0;
-    vec->capacity = 0;
-}
-
-void XMLCALL startElement(void *userData, const char *name, const char **attrs) {
+void XMLCALL start_element(void *userData, const char *name, const char **attr) {
     XMLData *data = (XMLData *)userData;
     memset(data->temp_data, 0, sizeof(data->temp_data));
-    strlcpy(data->currentElement, name, sizeof(data->currentElement));
-    HAR_PAL_VERBOSE(LOG_TAG, "Start element: %s", name);
-    if (strcmp(name, "device") ==0 ) {
-        memset(&data->currentDevice, 0, sizeof(data->currentDevice));
-    }
-}
+    PlatformAudioDevices *current_device = &data->devices[data->device_count];
 
-void XMLCALL endElement(void *userData, const char *name) {
-    XMLData *data = (XMLData *)userData;
-    HAR_PAL_VERBOSE(LOG_TAG, "End Element: %s", name);
+    strlcpy(data->current_element, name, sizeof(data->current_element));
+
     if (strcmp(name, "device") == 0) {
-        if (data->mode == 1) {
-            HAR_PAL_VERBOSE(LOG_TAG,"Ending device id= %d",data->currentDevice.id);
-            add_element(data->vec, &data->currentDevice);
+        for (int i = 0; attr[i]; i += 2) {
+            if (strcmp(attr[i], "AudioDeviceId") == 0) {
+                strlcpy(current_device->AudioDeviceId, attr[i + 1], sizeof(current_device->AudioDeviceId));
+            }
         }
-        else if (data->mode == 2 && data->currentDevice.id == data->tid) {
-           if (data->bus_address_found == 0) {
-               HAR_PAL_VERBOSE(LOG_TAG," device id= %d",data->currentDevice.id);
-               data->bus_address_found = 1;
-               add_element(data->vec, &data->currentDevice);
-               XML_StopParser(data->parser, XML_FALSE);
-           }
-       }
+    } else if (strcmp(name, "pcm_config") == 0) {
+        for (int i = 0; attr[i]; i += 2) {
+            if (strcmp(attr[i], "sample_rate") == 0) {
+                current_device->sample_rate = atoi(attr[i + 1]);
+            } else if (strcmp(attr[i], "format") == 0) {
+                current_device->format = atoi(attr[i + 1]);
+            } else if (strcmp(attr[i], "channel") == 0) {
+                current_device->channels = atoi(attr[i + 1]);
+            }
+        }
     }
-
-    memset(data->currentElement, 0, sizeof(data->currentElement));
 }
 
-void XMLCALL characterDataHandler(void *userData, const XML_Char *s, int len) {
+void XMLCALL end_element(void *userData, const char *name) {
     XMLData *data = (XMLData *)userData;
-     if(len >= sizeof(data->temp_data)) {
-                len = sizeof(data->temp_data) - 1;
-        }
+
+    if (strcmp(name, "device") == 0) {
+        data->device_count++;
+    }
+
+    memset(data->current_element, 0, sizeof(data->current_element));
+}
+
+void XMLCALL character_data_handler(void *userData, const char *s, int len) {
+    XMLData *data = (XMLData *)userData;
+    PlatformAudioDevices *current_device = &data->devices[data->device_count];
+
+    if (strcmp(data->current_element, "name") == 0) {
+        return;
+    }
+    if (len >= sizeof(data->temp_data)) {
+        len = sizeof(data->temp_data) - 1;
+    }
 
     strlcpy(data->temp_data, s, len + 1);
-    if (strcmp(data->currentElement, "name") == 0) {
-    memset(data->currentDevice.name, 0, sizeof(data->currentDevice.name));
-    strlcpy(data->currentDevice.name, data->temp_data, sizeof(data->currentDevice.name));
-    HAR_PAL_VERBOSE(LOG_TAG,"Parsed name= %s",data->currentDevice.name);
-    } else if (strcmp(data->currentElement, "id") == 0) {
-        data->currentDevice.id = atoi(data->temp_data);
-        HAR_PAL_VERBOSE(LOG_TAG,"Parsed device id= %d",data->currentDevice.id);
-    } else if (strcmp(data->currentElement, "Bus_Address") == 0) {
-        if (data->currentDevice.id == data->tid) {
-            memset(data->currentDevice.bus_address, 0,sizeof(data->currentDevice.bus_address));
-            strlcpy(data->currentDevice.bus_address, data->temp_data,
-                    sizeof(data->currentDevice.bus_address));
-            HAR_PAL_VERBOSE(LOG_TAG,"Parsed Bus_address= %s",data->currentDevice.bus_address);
-        }
-    }
-    memset(data->temp_data, 0, sizeof(data->temp_data));
-}
 
-/*PAL Devices are maintained in an xml file – device_manager.xml.
- *This functions further calls parse_device_id() which takes XML file as an input,
- *parses the same and returns the available devices list.
- */
-IntVector available_devices() {
-    const char *filename = HAR_PAL_DEVICE;
-    HAR_PAL_DBG(LOG_TAG, "%s Enter",__func__);
-    return parse_device_id(filename);
+    if (strcmp(data->current_element, "id") == 0) {
+        current_device->device_id = atoi(data->temp_data);
+    } else if (strcmp(data->current_element, "Bus_Address") == 0) {
+        strlcpy(current_device->bus_address, data->temp_data, sizeof(current_device->bus_address));
+    } else if (strcmp(data->current_element, "Volume") == 0) {
+        current_device->volume = atoi(data->temp_data);
+    }
+
+    memset(data->temp_data, 0, sizeof(data->temp_data));
 }
 
 /*New API Introduced in PDK21.
  *This function parses and returns an AudioDevice for a specific device_id.
  */
-struct PlatformAudioDevices get_audio_device(const char* device_id) {
-    struct PlatformAudioDevices audio_device;
-    audio_device.channels = 1;
-    int id = -1;
-    IntVector devices = available_devices();
-    pthread_mutex_lock(&lock);
-
-    if (strcmp("BUS00_WS",device_id) == 0) {
-        HAR_PAL_ERR(LOG_TAG,"get_audio_device id= BUS00_WS");
-        audio_device.channels = 2;
-        id = 2;
-    } else if (strcmp("BUS01_no_ASIL",device_id) == 0) {
-        HAR_PAL_ERR(LOG_TAG,"get_audio_device id= BUS01_no_ASIL");
-        id = 3;
-    }else if (strcmp("BUS02_Road_ADAS",device_id) == 0) {
-        HAR_PAL_ERR(LOG_TAG,"get_audio_device id= BUS02_Road_ADAS");
-        id = 4;
-    }else if (strcmp("BUS03_ASIL",device_id) == 0) {
-        HAR_PAL_ERR(LOG_TAG,"get_audio_device id= BUS03_ASIL");
-        id = 5;
+PlatformAudioDevices get_audio_device(const char* device_id) {
+    int ret;
+    PlatformAudioDevices audio_device;
+    audio_device.device_id = -1;
+    ret = pthread_mutex_lock(&lock);
+    if (ret !=0) {
+      HAR_PAL_ERR(LOG_TAG,"HAR_PAL: %s pthread_mutex_lock failed", __func__);
+      return audio_device;
     }
 
-    strlcpy(audio_device.bus_address, device_id, MAX_ADDRESS_LEN);
-    audio_device.AudioDeviceId = id;
-    audio_device.card = 0;
-    audio_device.rate = 48000;
-    audio_device.format = 16;
-    audio_device.start_threshold = 0;
-    audio_device.stop_threshold = 0;
-    audio_device.silence_threshold = 0;
-    audio_device.silence_size = 0;
-    audio_device.avail_min = 0;
+    HAR_PAL_DBG(LOG_TAG,"AudioDeviceId = %s",device_id);
+    if (!parse_device_xml()){
+        HAR_PAL_ERR(LOG_TAG,"Failed to get Device.Loading default config");
+	audio_device = load_default_config(device_id);
+        ret = pthread_mutex_unlock(&lock);
+	if (ret !=0) {
+          HAR_PAL_ERR(LOG_TAG,"HAR_PAL: %s pthread_mutex_unlock failed", __func__);
+        }
+	return audio_device;
+    }
 
-    pthread_mutex_unlock(&lock);
+    for (int i = 0; i < MAX_DEVICES; i++) {
+        HAR_PAL_VERBOSE(LOG_TAG,"i = %d platform_audio_devices_list = %d",i,platform_audio_devices_list[i].device_id);
+        if(strcmp(device_id,platform_audio_devices_list[i].AudioDeviceId) == 0){
+            HAR_PAL_DBG(LOG_TAG,"AudioDeviceId = %s",device_id);
+            ret = pthread_mutex_unlock(&lock);
+	    if (ret !=0) {
+              HAR_PAL_ERR(LOG_TAG,"HAR_PAL: %s pthread_mutex_unlock failed", __func__);
+            }
 
+            return platform_audio_devices_list[i];
+        }
+    }
+
+    ret = pthread_mutex_unlock(&lock);
+    if (ret !=0) {
+      HAR_PAL_ERR(LOG_TAG,"HAR_PAL: %s pthread_mutex_unlock failed", __func__);
+    }
     return audio_device;
 }
 
-IntVector parse_device_id(const char* filename) {
-    IntVector vec;
-    init_vector(&vec);
+/*Function to parse the XML*/
+bool parse_device_xml() {
+    if (platform_audio_devices_list[0].AudioDeviceId[0] != '\0') {
+        return true;
+    }
+    const char *filename = HAR_PAL_DEVICE;
+    XMLData user_data = {0};
 
-    XMLData data;
-    data.vec = &vec;
-    data.mode = 1;
-    data.currentElement[0] = '\0';
-
-    pthread_mutex_lock(&lock);
-
-    // Create and configure the XML parser
     XML_Parser parser = XML_ParserCreate(NULL);
-    XML_SetUserData(parser, &data);
-    XML_SetElementHandler(parser, startElement, endElement);
-    XML_SetCharacterDataHandler(parser, characterDataHandler);
+    if (!parser){
+        HAR_PAL_ERR(LOG_TAG, "Failed to create parser");
+        return false;
+    }
+    XML_SetUserData(parser, &user_data);
+    XML_SetElementHandler(parser, start_element, end_element);
+    XML_SetCharacterDataHandler(parser, character_data_handler);
 
     FILE *file = fopen(filename, "r");
     if (!file) {
         HAR_PAL_ERR(LOG_TAG, "Cannot open file: %s", filename);
         XML_ParserFree(parser);
-        pthread_mutex_unlock(&lock);
-        exit(EXIT_FAILURE);
+        return false;
     }
 
-    // Read the file and parse it
     char buffer[BUFSIZ];
     size_t len;
     while ((len = fread(buffer, 1, sizeof(buffer), file)) > 0) {
@@ -367,80 +316,58 @@ IntVector parse_device_id(const char* filename) {
             HAR_PAL_ERR(LOG_TAG, "XML Parse error: %s", XML_ErrorString(XML_GetErrorCode(parser)));
             XML_ParserFree(parser);
             fclose(file);
-            free_vector(data.vec);
-            free(data.vec);
-            pthread_mutex_unlock(&lock);
-            exit(EXIT_FAILURE);
-       }
+            return false;
+        }
     }
     // Finalize Parsing
     if (XML_Parse(parser, NULL, 0, XML_TRUE) == XML_STATUS_ERROR) {
         HAR_PAL_ERR(LOG_TAG, "XML Parse error: %s\n", XML_ErrorString(XML_GetErrorCode(parser)));
     }
 
+    for (int i = 0; i < user_data.device_count; i++) {
+        platform_audio_devices_list[i] = user_data.devices[i];
+        PlatformAudioDevices *device = &user_data.devices[i];
+        HAR_PAL_DBG(LOG_TAG,
+            "device_id: %d AudioDeviceId: %s bus_address: %s channels: %d Sample Rate: %d format: %d volume: %d\n",
+            device->device_id, device->AudioDeviceId, device->bus_address, device->channels,
+            device->sample_rate, device->format, device->volume
+        );
+    }
+
     fclose(file);
     XML_ParserFree(parser);
-    pthread_mutex_unlock(&lock);
-    return vec;
+    return true;
 }
 
-//Function to parse and return bus address for a specific device_id
-char* parse_bus_address(const char *filename, int target_id) {
+/*Loads default configuration, if XML Parsing fails*/
+PlatformAudioDevices load_default_config(const char* device) {
+    PlatformAudioDevices audio_device;
+    audio_device.channels = 1;
 
-   FILE *file = fopen(filename, "r");
-   if (!file) {
-       HAR_PAL_ERR(LOG_TAG, "Error opening file");
-       return NULL;
-   }
-   // Initialize the XMLData structure
-   XMLData data;
-   data.vec = (IntVector *)malloc(sizeof(IntVector));
-   init_vector(data.vec);
-   data.mode = 2;
-   data.tid = target_id;
-   data.bus_address_found = 0;
 
-   // Create and configure the XML parser
-   XML_Parser parser = XML_ParserCreate(NULL);
-   XML_SetUserData(parser, &data);
-   XML_SetElementHandler(parser, startElement, endElement);
-   XML_SetCharacterDataHandler(parser, characterDataHandler);
-   // Read the file and parse it
-   char buffer[BUFSIZ];
-   size_t len;
+     if (strcmp("WELCOME_SEQUENCE",device) == 0) {
+        HAR_PAL_INFO(LOG_TAG,"get_audio_device id= WELCOME_SEQUENCE");
+	strlcpy(audio_device.bus_address, "BUS00_WS", MAX_ADDRESS_LEN);
+	audio_device.device_id = 2;
+        audio_device.channels = 2;
+     } else if (strcmp("WARN",device) == 0) {
+	HAR_PAL_INFO(LOG_TAG,"get_audio_device id= WARN");
+        strlcpy(audio_device.bus_address, "BUS01_no_ASIL", MAX_ADDRESS_LEN);
+        audio_device.device_id = 3;
+     } else if (strcmp("ROAD-ADAS",device) == 0) {
+	HAR_PAL_INFO(LOG_TAG,"get_audio_device id= ROAD-ADAS");
+        strlcpy(audio_device.bus_address, "BUS02_Road_Adas", MAX_ADDRESS_LEN);
+        audio_device.device_id = 4;
+     } else if (strcmp("SWARN",device) == 0) {
+	HAR_PAL_INFO(LOG_TAG,"get_audio_device id= SWARN");
+        strlcpy(audio_device.bus_address, "BUS03_ASIL", MAX_ADDRESS_LEN);
+        audio_device.device_id = 5;
+     }
 
-   while ((len = fread(buffer, 1, sizeof(buffer), file)) > 0) {
-       if (XML_Parse(parser, buffer, len, XML_FALSE) == XML_STATUS_ERROR) {
-           HAR_PAL_ERR(LOG_TAG, "XML Parse error: %s", XML_ErrorString(XML_GetErrorCode(parser)));
-           XML_ParserFree(parser);
-           fclose(file);
-           free_vector(data.vec);
-           free(data.vec);
-           return NULL;
-       }
-       // Check if the bus address was found
-       if (data.bus_address_found) {
-           break;
-       }
-   }
-   // Finalize Parsing
-   if (XML_Parse(parser, NULL, 0, XML_TRUE) == XML_STATUS_ERROR) {
-       HAR_PAL_ERR(LOG_TAG, "XML Parse error: %s\n", XML_ErrorString(XML_GetErrorCode(parser)));
-   }
-   // Return the found bus address, or NULL if not found
-   char *bus_address = NULL;
-   if (data.vec->size > 0) {
-       bus_address = (char *)malloc(MAX_ADDRESS_LEN);
-       if (bus_address) {
-           strlcpy(bus_address, data.vec->data[0].bus_address, MAX_ADDRESS_LEN);
-       }
-   }
-    // Clean up
-    XML_ParserFree(parser);
-    fclose(file);
-    free_vector(data.vec);
-    free(data.vec);
-    return bus_address;
+     audio_device.sample_rate = 48000;
+     audio_device.volume = -3100;
+     audio_device.format = 16;
+     return audio_device;
 }
 
 /*Opens the given Audio Device, ensuring it is ready to play sound.
@@ -448,15 +375,12 @@ char* parse_bus_address(const char *filename, int target_id) {
  *pal_stream_get_buffer_size() and pal_stream_get_buffer_size().
  *Further it calls pal_stream_start() as well.
  */
-uint32_t Open_Device(struct PlatformAudioDevices *har_pal) {
+int32_t Open_Device(PlatformAudioDevices *har_device) {
 
     int ret = -EINVAL;
-    uint32_t err;
-    uint32_t errval =0;
+    int32_t err = 0;
     uint32_t no_of_devices = 1;
     har_pal_out_device_id_t outDeviceId = 0;
-    const char *filename = HAR_PAL_DEVICE;
-    char *bus_addr = NULL;
 
     pvt_data_t *pPvtData = calloc(1, sizeof(pvt_data_t));
     if (pPvtData == NULL) {
@@ -464,11 +388,16 @@ uint32_t Open_Device(struct PlatformAudioDevices *har_pal) {
         return -1;
     }
 
-    pthread_mutex_lock(&lock);
+    ret = pthread_mutex_lock(&lock);
+    if (ret !=0) {
+      HAR_PAL_ERR(LOG_TAG,"HAR_PAL: %s pthread_mutex_lock failed", __func__);
+      goto exit;
+    }
     if (pal_init_status == 0) {
         err = pal_init();
         if (err) {
             HAR_PAL_ERR(LOG_TAG,"pal_init failed");
+            goto exit;
         }
         pal_init_status++;
     }
@@ -482,71 +411,51 @@ uint32_t Open_Device(struct PlatformAudioDevices *har_pal) {
     pPvtData->alsaPeriodSize = PERIOD_SIZE;
     pPvtData->alsaStartThreshold = 0;
     pPvtData->alsaStopThreshold = 0;
+    pPvtData->audioRate = HAR_AUDIO_RATE_48KHZ;
+    pPvtData->audioBitDepth = HAR_AUDIO_BIT_DEPTH_16BIT;
+    pPvtData->audioChannels = HAR_AUDIO_CHANNELS_2;
 
-    outDeviceId = har_pal->AudioDeviceId;
+    outDeviceId = har_device->device_id;
     if (outDeviceId < 0 || outDeviceId > 7) {
         HAR_PAL_ERR(LOG_TAG,"har_pal_out_device_id has to be in between 0 to 7."
                 "setting the default value as 3");
         outDeviceId = 2;
     }
 
-    HAR_PAL_VERBOSE(LOG_TAG, "har_pal_out_device_id = %d", outDeviceId);
+    HAR_PAL_DBG(LOG_TAG, "har_pal_out_device_id = %d", outDeviceId);
+
+    //need to discuss..
     get_out_device_id(outDeviceId, &(pPvtData->devices));
     pPvtData->deviceId = pPvtData->devices.id;
 
-    if (har_pal->rate >= HAR_AUDIO_RATE_8KHZ &&
-                har_pal->rate <= HAR_AUDIO_RATE_192KHZ) {
-        pPvtData->audioRate = har_pal->rate;
+    if (har_device->sample_rate >= HAR_AUDIO_RATE_8KHZ &&
+                har_device->sample_rate <= HAR_AUDIO_RATE_192KHZ) {
+        pPvtData->audioRate = har_device->sample_rate;
         HAR_PAL_VERBOSE(LOG_TAG, "audioRate = %d", pPvtData->audioRate);
-    } else {
-        HAR_PAL_ERR(LOG_TAG, "Invalid audio rate configured.Setting to default");
-        pPvtData->audioRate = HAR_AUDIO_RATE_48KHZ;
     }
 
-    if (har_pal->format >= HAR_AUDIO_BIT_DEPTH_8BIT &&
-                har_pal->format <= HAR_AUDIO_BIT_DEPTH_64BIT) {
-        pPvtData->audioBitDepth = har_pal->format;
+    if (har_device->format >= HAR_AUDIO_BIT_DEPTH_8BIT &&
+                har_device->format <= HAR_AUDIO_BIT_DEPTH_64BIT) {
+        pPvtData->audioBitDepth = har_device->format;
         HAR_PAL_VERBOSE(LOG_TAG, "audioBitDepth = %d", pPvtData->audioBitDepth);
-    } else {
-        HAR_PAL_ERR(LOG_TAG, "Invalid audio type configured.Setting to default");
-        pPvtData->audioBitDepth = HAR_AUDIO_BIT_DEPTH_16BIT;
     }
 
-    if (har_pal->channels >= HAR_AUDIO_CHANNELS_1 &&
-                har_pal->channels <= HAR_AUDIO_CHANNELS_32) {
-        pPvtData->audioChannels = har_pal->channels;
+    if (har_device->channels >= HAR_AUDIO_CHANNELS_1 &&
+                har_device->channels <= HAR_AUDIO_CHANNELS_32) {
+        pPvtData->audioChannels = har_device->channels;
         HAR_PAL_VERBOSE(LOG_TAG, "audioChannels = %d", pPvtData->audioChannels);
-    } else {
-        HAR_PAL_ERR(LOG_TAG, "Invalid audio channels configured.Setting to default.");
-        pPvtData->audioChannels = HAR_AUDIO_CHANNELS_2;
     }
 
     //Setting Stream Attributes
     memset(&pPvtData->stream_attr, 0, sizeof(pPvtData->stream_attr));
     pPvtData->stream_attr.type = PAL_STREAM_PLAYBACK_BUS;
-    switch (outDeviceId) {
-        case 2:
-            bus_addr = parse_bus_address(filename, outDeviceId);
-            break;
-        case 3:
-            bus_addr = parse_bus_address(filename, outDeviceId);
-            break;
-        case 4:
-            bus_addr = parse_bus_address(filename, outDeviceId);
-            break;
-        case 5:
-            bus_addr = parse_bus_address(filename, outDeviceId);
-            break;
-        default:
-            HAR_PAL_ERR(LOG_TAG,"Invalid output device id");
-            break;
-    }
 
-     if (bus_addr) {
-         pPvtData->stream_attr.bus_addr = bus_addr;
-         HAR_PAL_DBG(LOG_TAG, "Bus Address for device ID %d: %s", outDeviceId, bus_addr);
-     } else {
-         HAR_PAL_ERR(LOG_TAG, "Bus Address for device ID %d not found", outDeviceId);
+    if (har_device->bus_address[0] != '\0') {
+        pPvtData->stream_attr.bus_addr = har_device->bus_address;
+        HAR_PAL_DBG(LOG_TAG, "Bus Address for device ID %d: %s", outDeviceId, har_device->bus_address);
+    } else {
+        HAR_PAL_ERR(LOG_TAG, "Bus Address for device ID %d not found using BUS00_WS", outDeviceId);
+        pPvtData->stream_attr.bus_addr = "BUS00_WS";
     }
 
     pPvtData->stream_attr.direction = PAL_AUDIO_OUTPUT;
@@ -595,7 +504,7 @@ uint32_t Open_Device(struct PlatformAudioDevices *har_pal) {
                                          &pPvtData->outBufCount, &pPvtData->outBufSize);
 
     if(ret) {
-        HAR_PAL_INFO(LOG_TAG,"Pal get buffer size failed (%x).Setting Default", ret);
+        HAR_PAL_ERR(LOG_TAG,"Pal get buffer size failed (%x).Setting Default", ret);
         /*Fall-back to default buffer count and size*/
         pPvtData->outBufCount = 4;
         pPvtData->outBufSize = 1024 * 4;
@@ -610,7 +519,7 @@ uint32_t Open_Device(struct PlatformAudioDevices *har_pal) {
         HAR_PAL_ERR(LOG_TAG,"Pal Stream set buffer size Error  (%x)\n", ret);
     }
 
-    HAR_PAL_VERBOSE(LOG_TAG, "%s Calling pal_stream_start",__func__);
+    HAR_PAL_DBG(LOG_TAG, "%s Calling pal_stream_start",__func__);
     ret = pal_stream_start(pal_stream_handle);
 
     if (ret == 0)
@@ -624,18 +533,21 @@ uint32_t Open_Device(struct PlatformAudioDevices *har_pal) {
 
 exit:
     stream_started =0;
-    free(bus_addr);
     free(pPvtData);
     pPvtData = NULL;
-    pthread_mutex_unlock(&lock);
-    HAR_PAL_DBG(LOG_TAG,"%s.Exit",__func__);
+    ret = pthread_mutex_unlock(&lock);
+    if (ret !=0) {
+      HAR_PAL_ERR(LOG_TAG,"HAR_PAL: %s pthread_mutex_unlock failed", __func__);
+      return ret;
+    }
+    HAR_PAL_ERR(LOG_TAG,"%s.Exit",__func__);
     return err;
 }
 
 /*This function converts a given number of audio frames to the corresponding number of bytes.
  *This is useful for determining the size of a buffer needed to store a specific number of frames.
  */
-uint32_t buffer_size_bytes(struct PlatformAudioDevices *har_pal)
+uint32_t buffer_size_bytes(PlatformAudioDevices *har_device)
 {
     pvt_data_t *pPvtData = calloc(1, sizeof(pvt_data_t));
     if (pPvtData == NULL) {
@@ -643,19 +555,18 @@ uint32_t buffer_size_bytes(struct PlatformAudioDevices *har_pal)
         return -1;
     }
     uint32_t buf_size;
-    uint32_t frame_size;
-    if (har_pal) {
-        if (har_pal->format >= HAR_AUDIO_BIT_DEPTH_8BIT &&
-                har_pal->format <= HAR_AUDIO_BIT_DEPTH_64BIT) {
-            pPvtData->audioBitDepth = har_pal->format;
+    if (har_device) {
+        if (har_device->format >= HAR_AUDIO_BIT_DEPTH_8BIT &&
+                har_device->format <= HAR_AUDIO_BIT_DEPTH_64BIT) {
+            pPvtData->audioBitDepth = har_device->format;
             HAR_PAL_VERBOSE(LOG_TAG, "audioBitDepth = %d", pPvtData->audioBitDepth);
         } else {
             HAR_PAL_ERR(LOG_TAG, "Invalid audio type configured.Setting to default");
             pPvtData->audioBitDepth = HAR_AUDIO_BIT_DEPTH_16BIT;
         }
-        if (har_pal->channels >= HAR_AUDIO_CHANNELS_1 &&
-                har_pal->channels <= HAR_AUDIO_CHANNELS_32) {
-            pPvtData->audioChannels = har_pal->channels;
+        if (har_device->channels >= HAR_AUDIO_CHANNELS_1 &&
+                har_device->channels <= HAR_AUDIO_CHANNELS_32) {
+            pPvtData->audioChannels = har_device->channels;
             HAR_PAL_VERBOSE(LOG_TAG, "audioChannels = %d", pPvtData->audioChannels);
         } else {
             HAR_PAL_ERR(LOG_TAG, "Invalid audio channels configured.Setting to default.");
@@ -665,12 +576,11 @@ uint32_t buffer_size_bytes(struct PlatformAudioDevices *har_pal)
 
     pPvtData->frames = ((outBufCfg.buf_size * 8) /
                             (pPvtData->audioChannels * pPvtData->audioBitDepth));
-    frame_size = pPvtData->frames;
 
     buf_size = ((pPvtData->frames * pPvtData->audioChannels) *
                             (pPvtData->audioBitDepth/8));
 
-    HAR_PAL_VERBOSE(LOG_TAG,"%s.Exit %d frames %d buffer_size",__func__, frame_size, buf_size);
+    HAR_PAL_VERBOSE(LOG_TAG,"%s.Exit %d frames %d buffer_size",__func__, pPvtData->frames, buf_size);
     free(pPvtData);
     pPvtData = NULL;
     return buf_size;
@@ -679,47 +589,38 @@ uint32_t buffer_size_bytes(struct PlatformAudioDevices *har_pal)
 /*This function takes buffer size from buffer_size_bytes() and
  *determines the playback rate by multiplying buffer size with rate.
  */
-uint32_t playback_rate(struct PlatformAudioDevices *har_pal)
+uint32_t playback_rate(PlatformAudioDevices *har_device)
 {
-    pvt_data_t *pPvtData = calloc(1, sizeof(pvt_data_t));
-    if (pPvtData == NULL) {
-        HAR_PAL_ERR(LOG_TAG,"Memory Allocation Failed\n");
-        return -1;
-    }
-    if (har_pal) {
-        if (har_pal->rate >= HAR_AUDIO_RATE_8KHZ &&
-                har_pal->rate <= HAR_AUDIO_RATE_192KHZ) {
-            pPvtData->audioRate = har_pal->rate;
-            HAR_PAL_VERBOSE(LOG_TAG, "audioRate = %d", pPvtData->audioRate);
+    uint32_t pb_rate = 0;
+    if (har_device) {
+        uint32_t buffer_size = buffer_size_bytes(&har_device);
+        if (har_device->sample_rate >= HAR_AUDIO_RATE_8KHZ &&
+                har_device->sample_rate <= HAR_AUDIO_RATE_192KHZ) {
+            pb_rate = (buffer_size * har_device->sample_rate);
+            HAR_PAL_VERBOSE(LOG_TAG, "audioRate = %d", har_device->sample_rate);
         } else {
             HAR_PAL_ERR(LOG_TAG, "Invalid audio rate configured.Setting to default");
-            pPvtData->audioRate = HAR_AUDIO_RATE_48KHZ;
+            pb_rate = (buffer_size * HAR_AUDIO_RATE_48KHZ);
         }
     }
-    uint32_t buffer_size = buffer_size_bytes(&har_pal);
-    uint32_t pb_rate = (buffer_size * pPvtData->audioRate);
 
     HAR_PAL_VERBOSE(LOG_TAG,"%s.Exit %d rate",__func__, pb_rate);
-    free(pPvtData);
-    pPvtData = NULL;
     return pb_rate;
 }
 
 /*This function play a slice of bytes to the given device.
  *This further calls pal_stream_write.
  */
-ssize_t try_play_bytes(struct PlatformAudioDevices *har_pal, void *buffer, int bytes)
+ssize_t try_play_bytes(PlatformAudioDevices *har_device, void *buffer, int bytes)
 {
     ssize_t ret = 0;
-    uint32_t status = 0;
-    uint32_t errval = 0;
+    int err;
     struct pal_buffer palBuffer;
-    pvt_data_t *pPvtData = calloc(1, sizeof(pvt_data_t));
-    if (pPvtData == NULL) {
-        HAR_PAL_ERR(LOG_TAG,"Memory Allocation Failed\n");
-        return -1;
+    err = pthread_mutex_lock(&lock);
+    if (err !=0) {
+      HAR_PAL_ERR(LOG_TAG,"HAR_PAL: %s pthread_mutex_lock failed", __func__);
+      return err;
     }
-    pthread_mutex_lock(&lock);
 
     memset(&palBuffer, 0, sizeof(struct pal_buffer));
     palBuffer.buffer = (uint8_t*) buffer;
@@ -729,46 +630,54 @@ ssize_t try_play_bytes(struct PlatformAudioDevices *har_pal, void *buffer, int b
     HAR_PAL_VERBOSE(LOG_TAG, "%s Buffer Size = %d", __func__, bytes);
 
     ret = pal_stream_write(pal_stream_handle, &palBuffer);
-    pthread_mutex_unlock(&lock);
+
+    err = pthread_mutex_unlock(&lock);
+    if (err !=0) {
+      HAR_PAL_ERR(LOG_TAG,"HAR_PAL: %s pthread_mutex_unlock failed", __func__);
+      return err;
+    }
+
     HAR_PAL_VERBOSE(LOG_TAG,"%s.Bytes Accepted = %d",__func__, ret);
-    free(pPvtData);
-    pPvtData = NULL;
     return ret;
 }
 
 /*This function sets volume of a particular stream.
  *This further calls pal_stream_set_volume to set volume.
  */
-int32_t set_volume(struct PlatformAudioDevices *har_pal, float volume)
+int32_t set_volume(PlatformAudioDevices *har_device, float volume)
 {
     int ret = 0;
-    pvt_data_t *pPvtData = calloc(1, sizeof(pvt_data_t));
-      if (pPvtData == NULL) {
-            HAR_PAL_ERR(LOG_TAG,"Memory Allocation Failed\n");
-            return -1;
-      }
+    uint32_t channels = HAR_AUDIO_CHANNELS_2;
 
     HAR_PAL_DBG(LOG_TAG,"%s.Enter",__func__);
-    if (har_pal) {
-       if (har_pal->channels >= HAR_AUDIO_CHANNELS_1 &&
-                har_pal->channels <= HAR_AUDIO_CHANNELS_32) {
-            pPvtData->audioChannels = har_pal->channels;
-            HAR_PAL_VERBOSE(LOG_TAG, "audioChannels = %d", pPvtData->audioChannels);
-        } else {
-            HAR_PAL_ERR(LOG_TAG, "Invalid audio channels configured.Setting to default.");
-            pPvtData->audioChannels = HAR_AUDIO_CHANNELS_2;
+    if (har_device) {
+       if (har_device->channels >= HAR_AUDIO_CHANNELS_1 &&
+                har_device->channels <= HAR_AUDIO_CHANNELS_32) {
+            channels = har_device->channels;
+            HAR_PAL_VERBOSE(LOG_TAG, "audioChannels = %d", channels);
         }
     }
-    pthread_mutex_lock(&lock);
+
+    ret = pthread_mutex_lock(&lock);
+    if (ret !=0) {
+      HAR_PAL_ERR(LOG_TAG,"HAR_PAL: %s pthread_mutex_lock failed", __func__);
+      return ret;
+    }
+
     if (volume) {
        struct pal_volume_data* volume_data = (struct pal_volume_data *) calloc(1,
-                                          sizeof(uint32_t) + (pPvtData->audioChannels * sizeof(struct
+                                          sizeof(uint32_t) + (channels * sizeof(struct
                                                      pal_channel_vol_kv)));
        if (volume_data == NULL) {
            HAR_PAL_ERR(LOG_TAG,"Unable to set volume");
+           ret = pthread_mutex_unlock(&lock);
+	   if (ret !=0) {
+             HAR_PAL_ERR(LOG_TAG,"HAR_PAL: %s pthread_mutex_unlock failed", __func__);
+             return ret;
+            }
            return -1;
        } else {
-            if (pPvtData->audioChannels == 1) {
+            if (channels == 1) {
                 volume_data->no_of_volpair = 1;
                 volume_data->volume_pair[0].channel_mask = PAL_CHMAP_CHANNEL_FL;
                 volume_data->volume_pair[0].vol = volume;
@@ -789,25 +698,29 @@ int32_t set_volume(struct PlatformAudioDevices *har_pal, float volume)
            volume_data = NULL;
        }
     }
-    pthread_mutex_unlock(&lock);
+    ret = pthread_mutex_unlock(&lock);
+    if (ret !=0) {
+      HAR_PAL_ERR(LOG_TAG,"HAR_PAL: %s pthread_mutex_unlock failed", __func__);
+      return ret;
+    }
+
     HAR_PAL_DBG(LOG_TAG,"%s.Exit ret %d",__func__, ret);
-    free(pPvtData);
-    pPvtData = NULL;
     return ret;
 }
 
 /*C implementation of close() API from Harry.
  *Further calls pal_stream_stop() and pal_stream_close().
  */
-int32_t StopAndCloseUsecase(struct PlatformAudioDevices *har_pal)
+int32_t StopAndCloseUsecase(PlatformAudioDevices *har_device)
 {
     int32_t status = 0;
-    pvt_data_t *pPvtData = calloc(1, sizeof(pvt_data_t));
-    if (pPvtData == NULL) {
-        HAR_PAL_ERR(LOG_TAG,"Memory Allocation Failed\n");
-        return -1;
-    }
+    int ret = 0;
 
+    ret = pthread_mutex_lock(&lock);
+    if (ret !=0) {
+      HAR_PAL_ERR(LOG_TAG,"HAR_PAL: %s pthread_mutex_lock failed", __func__);
+      return ret;
+    }
     HAR_PAL_DBG(LOG_TAG,"%s.Enter",__func__);
 
     if (pal_stream_handle) {
@@ -824,9 +737,24 @@ int32_t StopAndCloseUsecase(struct PlatformAudioDevices *har_pal)
 
       pal_stream_handle = NULL;
     }
-    free(pPvtData);
-    pPvtData = NULL;
-    (void) har_pal;
+    ret = pthread_mutex_unlock(&lock);
+    if (ret !=0) {
+      HAR_PAL_ERR(LOG_TAG,"HAR_PAL: %s pthread_mutex_unlock failed", __func__);
+      return ret;
+    }
+
     HAR_PAL_DBG(LOG_TAG,"%s.Exit",__func__);
     return status;
+}
+
+uint32_t set_spatialization(PlatformAudioDevices *har_device, Spatialization value) {
+	int status = 0;
+	HAR_PAL_DBG(LOG_TAG,"%s To be Implemented.WIP",__func__);
+        return status;
+}
+
+uint32_t set_custom_parameter(PlatformAudioDevices *har_device, char *id, union value val) {
+	int status = 0;
+	HAR_PAL_DBG(LOG_TAG,"%s To be Implemented.WIP",__func__);
+	return status;
 }

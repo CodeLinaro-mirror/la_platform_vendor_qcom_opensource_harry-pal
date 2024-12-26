@@ -3,24 +3,32 @@
 <!--SPDX-License-Identifier: BSD-3-Clause-Clear                                -->
 
 <devices>
-    <device>
+    <device AudioDeviceId = "WELCOME_SEQUENCE">
         <name>HAR_PAL_DEVICE_OUT_SPEAKER_WS</name>
         <id>2</id>
         <Bus_Address>BUS00_WS</Bus_Address>
+        <Volume>-3100</Volume>
+        <pcm_config sample_rate="48000" format="16" channel="2" />
     </device>
-    <device>
+    <device AudioDeviceId = "WARN">
         <name>HAR_PAL_DEVICE_OUT_SPEAKER_V_WARN</name>
         <id>3</id>
         <Bus_Address>BUS01_no_ASIL</Bus_Address>
+        <Volume>-3100</Volume>
+        <pcm_config sample_rate="48000" format="16" channel="1"/>
     </device>
-    <device>
+    <device AudioDeviceId = "ROAD-ADAS">
         <name>HAR_PAL_DEVICE_OUT_SPEAKER_ROAD_ADAS</name>
         <id>4</id>
         <Bus_Address>BUS02_Road_ADAS</Bus_Address>
+        <Volume>-3100</Volume>
+        <pcm_config sample_rate="48000" format="16" channel="1"/>
     </device>
-    <device>
+    <device AudioDeviceId = "SWARN">
         <name>HAR_PAL_DEVICE_OUT_SPEAKER_S_WARN</name>
         <id>5</id>
         <Bus_Address>BUS03_ASIL</Bus_Address>
+        <Volume>-3100</Volume>
+        <pcm_config sample_rate="48000" format="16" channel="1"/>
     </device>
 </devices>

@@ -182,6 +182,17 @@ union value {
     int data;
 };
 
+static inline void place_markers(char const *name){
+   int fd=open("/sys/kernel/boot_kpi/kpi_values", O_WRONLY);
+   if (fd > 0)
+   {
+       char har_kpi[100] = {0};
+       strlcpy(har_kpi, name, sizeof(har_kpi));
+       write(fd, har_kpi, strlen(har_kpi));
+       close(fd);
+   }
+}
+
 bool parse_device_xml();
 PlatformAudioDevices get_audio_device(const char* device_id);
 PlatformAudioDevices load_default_config(const char* device);

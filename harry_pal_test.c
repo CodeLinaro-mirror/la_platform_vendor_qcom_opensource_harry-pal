@@ -56,6 +56,7 @@ void sample_write(FILE *file, struct chunk_fmt fmt)
     uint32_t num_read;
     ssize_t bytes;
     fprintf(stdout, "Enabling write\n");
+    place_markers("kpi_value HarPalTest start playback");
 
     size = buffer_size_bytes(&platform_device);
     fprintf(stdout, "size = %d\n",size);
@@ -76,6 +77,7 @@ void sample_write(FILE *file, struct chunk_fmt fmt)
     } while (!streamClose && num_read > 0);
 
     free(buffer);
+    place_markers("kpi_value HarPalTest done playing");
     fprintf(stdout, "Done Playing.\n");
 }
 

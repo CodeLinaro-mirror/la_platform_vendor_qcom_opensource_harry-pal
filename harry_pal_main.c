@@ -254,6 +254,7 @@ PlatformAudioDevices get_audio_device(const char* device_id) {
       return audio_device;
     }
 
+    place_markers("kpi_value get_audio_device enter");
     HAR_PAL_DBG(LOG_TAG,"AudioDeviceId = %s",device_id);
     if (!parse_device_xml()){
         HAR_PAL_ERR(LOG_TAG,"Failed to get Device.Loading default config");
@@ -273,7 +274,6 @@ PlatformAudioDevices get_audio_device(const char* device_id) {
 	    if (ret !=0) {
               HAR_PAL_ERR(LOG_TAG,"HAR_PAL: %s pthread_mutex_unlock failed", __func__);
             }
-
             return platform_audio_devices_list[i];
         }
     }
@@ -282,6 +282,7 @@ PlatformAudioDevices get_audio_device(const char* device_id) {
     if (ret !=0) {
       HAR_PAL_ERR(LOG_TAG,"HAR_PAL: %s pthread_mutex_unlock failed", __func__);
     }
+    place_markers("kpi_value get_audio_device exit");
     return audio_device;
 }
 
@@ -387,6 +388,7 @@ int32_t Open_Device(PlatformAudioDevices *har_device) {
         HAR_PAL_ERR(LOG_TAG,"Memory Allocation Failed\n");
         return -1;
     }
+    place_markers("kpi_value open_device enter");
 
     ret = pthread_mutex_lock(&lock);
     if (ret !=0) {
@@ -540,6 +542,7 @@ exit:
       HAR_PAL_ERR(LOG_TAG,"HAR_PAL: %s pthread_mutex_unlock failed", __func__);
       return ret;
     }
+    place_markers("kpi_value open_device exit");
     HAR_PAL_ERR(LOG_TAG,"%s.Exit",__func__);
     return err;
 }
@@ -721,6 +724,7 @@ int32_t StopAndCloseUsecase(PlatformAudioDevices *har_device)
       HAR_PAL_ERR(LOG_TAG,"HAR_PAL: %s pthread_mutex_lock failed", __func__);
       return ret;
     }
+    place_markers("kpi_value close_device enter");
     HAR_PAL_DBG(LOG_TAG,"%s.Enter",__func__);
 
     if (pal_stream_handle) {
@@ -744,6 +748,7 @@ int32_t StopAndCloseUsecase(PlatformAudioDevices *har_device)
     }
 
     HAR_PAL_DBG(LOG_TAG,"%s.Exit",__func__);
+    place_markers("kpi_value close_device exit");
     return status;
 }
 

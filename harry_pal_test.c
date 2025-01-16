@@ -49,6 +49,38 @@ static int streamClose = 0;
 
 PlatformAudioDevices platform_device;
 
+void stream_close(int sig)
+{
+    /* allow the stream to be closed gracefully */
+    signal(sig, SIG_IGN);
+    streamClose = 1;
+}
+
+Spatialization stringToEnum(const char *str) {
+    if (strcmp(str, "FC") == 0) {
+        return FrontCenter;
+    } else if (strcmp(str, "FL") == 0) {
+        return FrontLeft;
+    } else if (strcmp(str, "FR") == 0) {
+        return FrontRight;
+    } else if (strcmp(str, "C") == 0) {
+        return Center;
+    } else if (strcmp(str, "RC") == 0) {
+        return Rear;
+    } else if (strcmp(str, "RL") == 0) {
+        return RearLeft;
+    } else if (strcmp(str, "RR") == 0) {
+        return RearRight;
+    } else if (strcmp(str, "R") == 0) {
+        return Right;
+    } else if (strcmp(str, "L") == 0) {
+        return Left;
+    }
+    else {
+       return Center;
+    }
+}
+
 void sample_write(FILE *file, struct chunk_fmt fmt)
 {
     char *buffer;
@@ -66,6 +98,10 @@ void sample_write(FILE *file, struct chunk_fmt fmt)
     }
 
     playback_rate(&platform_device);
+
+    /* catch ctrl-c to shutdown cleanly */
+    signal(SIGINT, stream_close);
+
     do {
         num_read = fread(buffer, 1, size, file);
         if (num_read > 0) {
@@ -93,12 +129,6 @@ void disable_usecase()
     streamClose = 1;
 }
 
-static void sigint_handler(int sig)
-{
-   signal(sig, SIG_IGN);
-   disable_usecase();
-   exit(0);
-}
 
 int main(int argc, char *argv[])
 {
@@ -110,6 +140,13 @@ int main(int argc, char *argv[])
     int more_chunks = 1;
     char ch[3];
     int status = 0;
+    float vol = -3100.0;
+    Spatialization spt = Center;
+
+      if (argc < 2) {
+        printf("Usage: %s file.wav [-v volume : -9000(min) to 0(max)] [-spt spatialization : FC, FL, FR, C, RC, RR, RL , R, L] \n", argv[0]);
+        return 1;
+    }
 
     filename = argv[1];
     file = fopen(filename, "rb");
@@ -146,10 +183,21 @@ int main(int argc, char *argv[])
         }
     } while (more_chunks);
 
+     /* parse command line arguments */
     argv += 2;
-
-    //Handling signals
-    signal(SIGINT, sigint_handler);
+    while (*argv) {
+        if (strcmp(*argv, "-v") == 0) {
+            argv++;
+            if (*argv)
+                vol = atof(*argv);
+        } else if (strcmp(*argv, "-spt") == 0) {
+            argv++;
+            if (*argv)
+                spt = stringToEnum(*argv);
+        }
+        if (*argv)
+            argv++;
+    }
 
     if (argc > 1) {
         fprintf(stdout, "1.Press 's' to start WelcomeSound Usecase\n"
@@ -168,7 +216,8 @@ int main(int argc, char *argv[])
                     printf(stdout, "Open_Device failed\n");
                     break;
                 }
-                set_volume(&platform_device, -4000.0);
+                set_volume(&platform_device, vol);
+                set_spatialization(&platform_device, spt);
                 sample_write(file,chunk_fmt);
                 disable_usecase();
                 fclose(file);
@@ -181,7 +230,8 @@ int main(int argc, char *argv[])
                     fprintf(stdout, "Open_Device failed\n");
                     break;
                 }
-                set_volume(&platform_device, -4000.0);
+                set_volume(&platform_device, vol);
+                set_spatialization(&platform_device, spt);
                 sample_write(file,chunk_fmt);
                 disable_usecase();
                 fclose(file);
@@ -194,7 +244,8 @@ int main(int argc, char *argv[])
                     fprintf(stdout, "Open_Device failed\n");
                     break;
                 }
-                set_volume(&platform_device, -4000.0);
+                set_volume(&platform_device, vol);
+                set_spatialization(&platform_device, spt);
                 sample_write(file,chunk_fmt);
                 disable_usecase();
                 fclose(file);
@@ -207,7 +258,8 @@ int main(int argc, char *argv[])
                     fprintf(stdout, "Open_Device failed\n");
                     break;
                 }
-                set_volume(&platform_device, -4000.0);
+                set_volume(&platform_device, vol);
+                set_spatialization(&platform_device, spt);
                 sample_write(file,chunk_fmt);
                 disable_usecase();
                 fclose(file);
@@ -225,4 +277,3 @@ int main(int argc, char *argv[])
     return status;
     }
 }
-

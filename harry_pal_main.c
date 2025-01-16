@@ -258,12 +258,12 @@ PlatformAudioDevices get_audio_device(const char* device_id) {
     HAR_PAL_DBG(LOG_TAG,"AudioDeviceId = %s",device_id);
     if (!parse_device_xml()){
         HAR_PAL_ERR(LOG_TAG,"Failed to get Device.Loading default config");
-	audio_device = load_default_config(device_id);
+        audio_device = load_default_config(device_id);
         ret = pthread_mutex_unlock(&lock);
-	if (ret !=0) {
+        if (ret !=0) {
           HAR_PAL_ERR(LOG_TAG,"HAR_PAL: %s pthread_mutex_unlock failed", __func__);
         }
-	return audio_device;
+        return audio_device;
     }
 
     for (int i = 0; i < MAX_DEVICES; i++) {
@@ -271,7 +271,7 @@ PlatformAudioDevices get_audio_device(const char* device_id) {
         if(strcmp(device_id,platform_audio_devices_list[i].AudioDeviceId) == 0){
             HAR_PAL_DBG(LOG_TAG,"AudioDeviceId = %s",device_id);
             ret = pthread_mutex_unlock(&lock);
-	    if (ret !=0) {
+            if (ret !=0) {
               HAR_PAL_ERR(LOG_TAG,"HAR_PAL: %s pthread_mutex_unlock failed", __func__);
             }
             return platform_audio_devices_list[i];
@@ -348,19 +348,19 @@ PlatformAudioDevices load_default_config(const char* device) {
 
      if (strcmp("WELCOME_SEQUENCE",device) == 0) {
         HAR_PAL_INFO(LOG_TAG,"get_audio_device id= WELCOME_SEQUENCE");
-	strlcpy(audio_device.bus_address, "BUS00_WS", MAX_ADDRESS_LEN);
-	audio_device.device_id = 2;
+        strlcpy(audio_device.bus_address, "BUS00_WS", MAX_ADDRESS_LEN);
+        audio_device.device_id = 2;
         audio_device.channels = 2;
      } else if (strcmp("WARN",device) == 0) {
-	HAR_PAL_INFO(LOG_TAG,"get_audio_device id= WARN");
+        HAR_PAL_INFO(LOG_TAG,"get_audio_device id= WARN");
         strlcpy(audio_device.bus_address, "BUS01_no_ASIL", MAX_ADDRESS_LEN);
         audio_device.device_id = 3;
      } else if (strcmp("ROAD-ADAS",device) == 0) {
-	HAR_PAL_INFO(LOG_TAG,"get_audio_device id= ROAD-ADAS");
+        HAR_PAL_INFO(LOG_TAG,"get_audio_device id= ROAD-ADAS");
         strlcpy(audio_device.bus_address, "BUS02_Road_Adas", MAX_ADDRESS_LEN);
         audio_device.device_id = 4;
      } else if (strcmp("SWARN",device) == 0) {
-	HAR_PAL_INFO(LOG_TAG,"get_audio_device id= SWARN");
+        HAR_PAL_INFO(LOG_TAG,"get_audio_device id= SWARN");
         strlcpy(audio_device.bus_address, "BUS03_ASIL", MAX_ADDRESS_LEN);
         audio_device.device_id = 5;
      }
@@ -674,10 +674,10 @@ int32_t set_volume(PlatformAudioDevices *har_device, float volume)
        if (volume_data == NULL) {
            HAR_PAL_ERR(LOG_TAG,"Unable to set volume");
            ret = pthread_mutex_unlock(&lock);
-	   if (ret !=0) {
+           if (ret !=0) {
              HAR_PAL_ERR(LOG_TAG,"HAR_PAL: %s pthread_mutex_unlock failed", __func__);
              return ret;
-            }
+           }
            return -1;
        } else {
             if (channels == 1) {
@@ -752,14 +752,158 @@ int32_t StopAndCloseUsecase(PlatformAudioDevices *har_device)
     return status;
 }
 
+bool checkIfAWXBus(char* address, pal_awx_bus_type_t* bus_index)
+{
+  bool bus_match = false ;
+
+  if (NULL != bus_index)
+  {
+    // Assing the BUS To MAX address
+    *bus_index = BUS_RESERVED;
+    // Check if the bus address is a valid AWX BUS_ADDRESS
+    for (int i=0; i<BUS_RESERVED ; i++)
+    {
+        HAR_PAL_DBG(LOG_TAG,"%s address %s index %d\n", __func__,address,i);
+        if (strncmp((char *)bus_address[i], (char *)address,strlen(address)) == 0)
+        {
+            bus_match = true;
+            // Assing the index value and send it
+            *bus_index =  (pal_awx_bus_type_t)(i);
+            HAR_PAL_DBG(LOG_TAG,"%s address %s index %d\n", __func__,address,*bus_index);
+            break;
+        }
+     }
+   }
+   HAR_PAL_INFO(LOG_TAG, "%s, bus_match = %d",__func__, bus_match);
+   return bus_match;
+}
+
+/*C implementation of set_spatialization() API from Harry.
+ *Further creates payload for spatialization and calls pal_gef_rw_param.
+ */
 uint32_t set_spatialization(PlatformAudioDevices *har_device, Spatialization value) {
-	int status = 0;
-	HAR_PAL_DBG(LOG_TAG,"%s To be Implemented.WIP",__func__);
-        return status;
+
+    int status = 0;
+    int ret = 0;
+    char bus_addr[MAX_ADDRESS_LEN + 1];
+    uint8_t* payloadInfo = NULL;
+    pal_param_payload* pal_payload = NULL;
+    effect_pal_payload_t* effect_payload = NULL;
+    pal_effect_custom_payload_t* customPayload = NULL;
+    pal_awx_spt_data_t* spt_data = NULL;
+    pal_awx_bus_type_t bus_index = BUS_RESERVED;
+    pal_device_id_t pal_device = PAL_DEVICE_OUT_SPEAKER;
+
+    if (har_device) {
+        if (har_device->bus_address[0] !='\0') {
+            strlcpy(bus_addr, har_device->bus_address,MAX_ADDRESS_LEN);
+
+        } else {
+            HAR_PAL_ERR(LOG_TAG, "%s : Invalid bus address",__func__);
+            goto cleanup;
+        }
+    }
+
+    //checking for AWX bus
+    int is_awx_bus = checkIfAWXBus(bus_addr, &bus_index) && bus_index != BUS_RESERVED;
+
+    //calculate payload_size
+    uint32_t payload_size = sizeof(pal_param_payload) + sizeof(effect_pal_payload_t) +
+                              sizeof(pal_effect_custom_payload_t) + sizeof(pal_awx_spt_data_t);
+
+    //assign default value as 0 (FrontCenter)
+    if (value < FrontCenter || value > Left) {
+        HAR_PAL_VERBOSE(LOG_TAG, "%s: Setting default value", __func__);
+        value = FrontCenter;
+    }
+
+    HAR_PAL_DBG(LOG_TAG,"%s:Spatialization= %d,bus_addr= %s,awx_bus= %d,bus_idx= %d,payloadsize=%d",
+              __func__,
+              value,
+              bus_addr,
+              is_awx_bus,
+              bus_index,
+              payload_size);
+
+    size_t padBytes = PADDING_8BYTE_ALIGN(payload_size);
+
+    ret = pthread_mutex_lock(&lock);
+    if (ret !=0) {
+      HAR_PAL_ERR(LOG_TAG,"HAR_PAL: %s pthread_mutex_lock failed", __func__);
+      return ret;
+    }
+
+    //allocate memory for payload
+    payloadInfo = (uint8_t*) calloc(1, payload_size + padBytes);
+    if (!payloadInfo) {
+        HAR_PAL_ERR(LOG_TAG,"HAR_PAL: %s Memory allocation failure",__func__);
+        ret = pthread_mutex_unlock(&lock);
+        if (ret !=0) {
+           HAR_PAL_ERR(LOG_TAG,"HAR_PAL: %s pthread_mutex_unlock failed", __func__);
+           return ret;
+         }
+        return -ENOMEM;
+    }
+
+    //Creating payload
+    pal_payload = (pal_param_payload*) payloadInfo;
+    effect_payload = (effect_pal_payload_t*) (payloadInfo + sizeof(pal_param_payload));
+    customPayload = (pal_effect_custom_payload_t*) (payloadInfo + sizeof(pal_param_payload)
+                       + sizeof(effect_pal_payload_t));
+
+    pal_payload->payload_size = sizeof(effect_pal_payload_t) + sizeof(pal_effect_custom_payload_t)
+                                  + sizeof(pal_awx_spt_data_t);
+
+    effect_payload->isTKV = PARAM_NONTKV;
+
+    // check for AWX BUS to handle spatialization appropriately
+    if (is_awx_bus) {
+        effect_payload->tag = TAG_MODULE_CUSTOM_AWX;
+        effect_payload->payloadSize = sizeof(pal_effect_custom_payload_t) + sizeof(pal_awx_spt_data_t);
+        customPayload->paramId = AWX_SPATIALIZATION;
+        spt_data = (pal_awx_spt_data_t*)customPayload->data;
+        spt_data->spt_func = ((uint16_t)1 << bus_index);
+        spt_data->reserved = 0;
+        spt_data->val[0] = value;
+        HAR_PAL_VERBOSE(LOG_TAG,"AWX Bus idx= %d,bus_addr= %s,awx_bus= %d,paramId= %x,tagid= %x",
+                  bus_index,
+                  bus_addr,
+                  is_awx_bus,
+                  customPayload->paramId,
+                  effect_payload->tag);
+    } else {
+        HAR_PAL_INFO(LOG_TAG, "Skip Spatialization for bus_addr = %s", bus_addr);
+        goto cleanup;
+    }
+
+    status = pal_gef_rw_param(PAL_PARAM_ID_UIEFFECT, (void *) pal_payload, payload_size,
+                              pal_device, PAL_STREAM_PLAYBACK_BUS, GEF_PARAM_WRITE, bus_addr);
+cleanup:
+    if (payloadInfo) {
+        free(payloadInfo);
+        payloadInfo = NULL;
+    }
+    pal_payload = NULL;
+    effect_payload = NULL;
+    customPayload = NULL;
+    spt_data = NULL;
+    ret = pthread_mutex_unlock(&lock);
+    if (ret !=0) {
+      HAR_PAL_ERR(LOG_TAG,"HAR_PAL: %s pthread_mutex_unlock failed", __func__);
+      return ret;
+    }
+
+    if (status != 0) {
+        HAR_PAL_ERR(LOG_TAG,"Error setting spatialization with error: %d\n", status);
+    } else {
+        HAR_PAL_INFO(LOG_TAG,"Set Spatialization successful");
+    }
+
+    return status;
 }
 
 uint32_t set_custom_parameter(PlatformAudioDevices *har_device, char *id, union value val) {
-	int status = 0;
-	HAR_PAL_DBG(LOG_TAG,"%s To be Implemented.WIP",__func__);
-	return status;
+        int status = 0;
+        HAR_PAL_DBG(LOG_TAG,"%s To be Implemented.WIP",__func__);
+        return status;
 }

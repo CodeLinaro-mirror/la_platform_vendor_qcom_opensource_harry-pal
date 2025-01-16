@@ -24,6 +24,14 @@
 
 #define MAX_ADDRESS_LEN 100
 #define MAX_DEVICES 4
+#define AWX_SPATIALIZATION 0x11112505
+#define TAG_MODULE_CUSTOM_AWX 0xC0000057
+#define PADDING_8BYTE_ALIGN(x)  ((((x) + 7) & 7) ^ 7)
+
+#define BUS_WS             "BUS00_WS"
+#define BUS_VWARN          "BUS01_no_ASIL"
+#define BUS_ROAD_ADAS      "BUS02_Road_ADAS"
+#define BUS_SWARN          "BUS03_ASIL"
 
 struct riff_wave_header {
     uint32_t riff_id;
@@ -166,16 +174,41 @@ typedef struct {
 } XMLData;
 
 typedef enum {
-    Front = 0,
+    FrontCenter = 0,
     FrontLeft = 1,
     FrontRight = 2,
-    Center = 3, // No spatialization
+    Center = 3,
     Rear = 4,
     RearLeft = 5,
     RearRight = 6,
     Right = 7,
     Left = 8
 } Spatialization;
+
+typedef struct pal_awx_spt_data
+{
+    uint16_t spt_func;
+    uint16_t reserved;
+    int32_t val[16];
+}pal_awx_spt_data_t;
+
+typedef enum pal_awx_bus_type
+{
+    BUS_MEDIA_WS_AWX,
+    BUS_SYS_NOTIFICATION_AWX,
+    BUS_NAVIGATION_AWX,
+    BUS_PHONE_AWX,
+    BUS_NAVIGATION2_AWX,
+    BUS_VWARN_AWX,
+    BUS_VROADADAS_AWX,
+    BUS_RESERVED =0xF
+}pal_awx_bus_type_t;
+
+const char bus_address[BUS_RESERVED][MAX_ADDRESS_LEN]={
+    BUS_WS,
+    BUS_VWARN,
+    BUS_ROAD_ADAS
+};
 
 union value {
     char name[100];
@@ -194,6 +227,7 @@ static inline void place_markers(char const *name){
 }
 
 bool parse_device_xml();
+Spatialization stringToEnum(const char *str);
 PlatformAudioDevices get_audio_device(const char* device_id);
 PlatformAudioDevices load_default_config(const char* device);
 void channel_map(uint8_t* ch_map, int channels);

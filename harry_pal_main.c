@@ -74,6 +74,347 @@ typedef enum {
     HAR_PAL_DEVICE_OUT_MAX = 8,
 } har_pal_out_device_id_t;
 
+int checkIfAWXBus(char* address, pal_awx_bus_type_t* bus_index)
+{
+    int bus_match = 0 ;
+
+    if (NULL != bus_index)
+    {
+        // Assing the BUS To MAX address
+        *bus_index = BUS_RESERVED;
+        // Check if the bus address is a valid AWX BUS_ADDRESS
+        for (int i=0; i<BUS_RESERVED ; i++)
+        {
+            HAR_PAL_DBG(LOG_TAG,"%s address %s index %d\n", __func__,address,i);
+            if (strncmp((char *)bus_address[i], (char *)address,strlen(address)) == 0)
+            {
+                bus_match = 1;
+                // Assing the index value and send it
+                *bus_index =  (pal_awx_bus_type_t)(i);
+                HAR_PAL_DBG(LOG_TAG,"%s address %s index %d\n", __func__,address,*bus_index);
+                break;
+            }
+        }
+    }
+    HAR_PAL_DBG(LOG_TAG, "%s, bus_match = %d",__func__, bus_match);
+    return bus_match;
+}
+
+//Handler function for MasterMute status
+uint32_t handleMasterMute(VehicleDataType vehicledatatype) {
+
+    int status = 0;
+    int ret = 0;
+    uint8_t* payloadInfo = NULL;
+    pal_param_payload* pal_payload = NULL;
+    effect_pal_payload_t* effect_payload = NULL;
+    pal_effect_custom_payload_t* customPayload = NULL;
+    Type2_param* MasterMute = NULL;
+    pal_device_id_t pal_device = PAL_DEVICE_OUT_SPEAKER;
+
+    HAR_PAL_DBG(LOG_TAG, "%s:VehicleDataType: Key = %s, Value  = %d",
+             __func__,
+             vehicledatatype.key,
+             vehicledatatype.value.paramVal.value);
+
+
+     ret = pthread_mutex_lock(&lock);
+    if (ret !=0) {
+      HAR_PAL_ERR(LOG_TAG,": %s pthread_mutex_lock failed", __func__);
+      return ret;
+    }
+
+    uint32_t payload_size = sizeof(pal_param_payload) + sizeof(effect_pal_payload_t) +
+                                 sizeof(pal_effect_custom_payload_t) + sizeof(Type2_param);
+
+    size_t padBytes = PADDING_8BYTE_ALIGN(payload_size);
+
+    if (strcmp(vehicledatatype.key, "CYBER_MASTER_MUTE") == 0 ||
+        strcmp(vehicledatatype.key, "TCU_MUTE") == 0 ||
+        strcmp(vehicledatatype.key, "STATIC_POWER_LIMITATION") == 0 ||
+        strcmp(vehicledatatype.key, "DELIVERY_MODE") == 0 ) {
+        //allocate memory for payload
+        payloadInfo = (uint8_t*) calloc(1, payload_size + padBytes);
+        if (!payloadInfo) {
+           HAR_PAL_ERR(LOG_TAG,":%s Memory allocation failure",__func__);
+           ret = pthread_mutex_unlock(&lock);
+           if (ret !=0) {
+              HAR_PAL_ERR(LOG_TAG,":%s pthread_mutex_unlock failed", __func__);
+              return ret;
+           }
+           return -ENOMEM;
+        }
+
+        //Creating payload
+        pal_payload = (pal_param_payload*) payloadInfo;
+        effect_payload = (effect_pal_payload_t*) (payloadInfo + sizeof(pal_param_payload));
+        customPayload = (pal_effect_custom_payload_t*) (payloadInfo + sizeof(pal_param_payload) + sizeof(effect_pal_payload_t));
+
+        pal_payload->payload_size = sizeof(effect_pal_payload_t) + sizeof(pal_effect_custom_payload_t)
+                                    + sizeof(Type2_param);
+
+        effect_payload->isTKV = PARAM_NONTKV;
+
+        effect_payload->tag = TAG_MODULE_CUSTOM_AWX;
+        effect_payload->payloadSize = sizeof(pal_effect_custom_payload_t) + sizeof(Type2_param);
+        customPayload->paramId = AWX_CYBER_MASTER_MUTE;
+        MasterMute = (Type2_param*)customPayload->data;
+        MasterMute->value = vehicledatatype.value.paramVal.value;
+
+        status = pal_gef_rw_param(PAL_PARAM_ID_UIEFFECT, (void *) pal_payload, payload_size,
+                              pal_device, PAL_STREAM_PLAYBACK_BUS, GEF_PARAM_WRITE, NULL);
+
+    } else {
+        HAR_PAL_ERR(LOG_TAG,"Unknown VehicleDataType");
+        status = -1;
+        goto cleanup;
+    }
+
+cleanup:
+    if (payloadInfo) {
+        free(payloadInfo);
+        payloadInfo = NULL;
+    }
+    pal_payload = NULL;
+    effect_payload = NULL;
+    customPayload = NULL;
+    ret = pthread_mutex_unlock(&lock);
+    if (ret !=0) {
+      HAR_PAL_ERR(LOG_TAG,": %s pthread_mutex_unlock failed", __func__);
+      return ret;
+    }
+
+    if (status != 0) {
+        HAR_PAL_ERR(LOG_TAG,"Set master mute failed with error: %d\n", status);
+    } else {
+        HAR_PAL_INFO(LOG_TAG,"Set Master Mute Sucessfull");
+    }
+
+    return status;
+}
+
+//Hanlder function to handle WelcomeSequence Status
+uint32_t handleWelcomeSequence(VehicleDataType vehicledatatype) {
+
+    int status = 0;
+    int ret = 0;
+    uint8_t* payloadInfo = NULL;
+    pal_param_payload* pal_payload = NULL;
+    effect_pal_payload_t* effect_payload = NULL;
+    pal_effect_custom_payload_t* customPayload = NULL;
+    Type2_param* WelcomeState = NULL;
+    pal_device_id_t pal_device = PAL_DEVICE_OUT_SPEAKER;
+
+    HAR_PAL_DBG(LOG_TAG, "%s:VehicleDataType: Key = %s, Value  = %d",
+             __func__,
+             vehicledatatype.key,
+             vehicledatatype.value.paramVal.value);
+
+
+     ret = pthread_mutex_lock(&lock);
+    if (ret !=0) {
+      HAR_PAL_ERR(LOG_TAG,": %s pthread_mutex_lock failed", __func__);
+      return ret;
+    }
+
+    uint32_t payload_size = sizeof(pal_param_payload) + sizeof(effect_pal_payload_t) +
+                                 sizeof(pal_effect_custom_payload_t) + sizeof(Type2_param);;
+
+    size_t padBytes = PADDING_8BYTE_ALIGN(payload_size);
+
+    if (strcmp(vehicledatatype.key,"PLAYBACK_STATUS") == 0) {
+        //allocate memory for payload
+        payloadInfo = (uint8_t*) calloc(1, payload_size + padBytes);
+        if (!payloadInfo) {
+           HAR_PAL_ERR(LOG_TAG,":%s Memory allocation failure",__func__);
+           ret = pthread_mutex_unlock(&lock);
+           if (ret !=0) {
+              HAR_PAL_ERR(LOG_TAG,":%s pthread_mutex_unlock failed", __func__);
+              return ret;
+           }
+           return -ENOMEM;
+        }
+
+        //Creating payload
+        pal_payload = (pal_param_payload*) payloadInfo;
+        effect_payload = (effect_pal_payload_t*) (payloadInfo + sizeof(pal_param_payload));
+        customPayload = (pal_effect_custom_payload_t*) (payloadInfo + sizeof(pal_param_payload) + sizeof(effect_pal_payload_t));
+
+        pal_payload->payload_size = sizeof(effect_pal_payload_t) + sizeof(pal_effect_custom_payload_t) + sizeof(Type2_param);
+
+        effect_payload->isTKV = PARAM_NONTKV;
+
+        effect_payload->tag = TAG_MODULE_CUSTOM_AWX;
+        effect_payload->payloadSize = sizeof(pal_effect_custom_payload_t) + sizeof(Type2_param);
+        customPayload->paramId = AWX_WELCOME_MODE;
+        WelcomeState = (Type2_param*)customPayload->data;
+        WelcomeState->value = vehicledatatype.value.paramVal.value;
+
+        status = pal_gef_rw_param(PAL_PARAM_ID_UIEFFECT, (void *) pal_payload, payload_size,
+                              pal_device, PAL_STREAM_PLAYBACK_BUS, GEF_PARAM_WRITE, NULL);
+
+    } else {
+        HAR_PAL_ERR(LOG_TAG,"Unknown VehicleDataType");
+        status = -1;
+        goto cleanup;
+    }
+
+cleanup:
+    if (payloadInfo) {
+        free(payloadInfo);
+        payloadInfo = NULL;
+    }
+    pal_payload = NULL;
+    effect_payload = NULL;
+    customPayload = NULL;
+    ret = pthread_mutex_unlock(&lock);
+    if (ret !=0) {
+      HAR_PAL_ERR(LOG_TAG,": %s pthread_mutex_unlock failed", __func__);
+      return ret;
+    }
+
+    if (status != 0) {
+        HAR_PAL_ERR(LOG_TAG,"Set welcome sequence failed with error: %d\n", status);
+    } else {
+        HAR_PAL_INFO(LOG_TAG,"Set Welcome Sequence Sucessfull");
+    }
+
+    return status;
+}
+
+//Handler function to handle restore volume
+uint32_t handleRestoreVolume(VehicleDataType vehicledatatype) {
+
+    int status = 0;
+    int ret =0;
+    float vol_mb = 0.0;
+    const char* bus_address = NULL;
+    const char *key = NULL;
+    uint8_t* payloadInfo = NULL;
+    pal_param_payload* pal_payload = NULL;
+    effect_pal_payload_t* effect_payload = NULL;
+    pal_effect_custom_payload_t* customPayload = NULL;
+    pal_awx_data_t* RestoreVolume = NULL;
+    pal_awx_bus_type_t bus_index = BUS_RESERVED;
+    pal_device_id_t pal_device = PAL_DEVICE_OUT_SPEAKER;
+
+    key = vehicledatatype.key;
+    bus_address = vehicledatatype.value.volume.bus_addr;
+    vol_mb = vehicledatatype.value.volume.volValue;
+
+    if (bus_address == NULL) {
+       HAR_PAL_ERR(LOG_TAG, "%s:Invalid Bus Address",__func__);
+       return -1;
+    }
+
+    int is_awx_bus = checkIfAWXBus(bus_address, &bus_index) && bus_index != BUS_RESERVED;
+
+    HAR_PAL_DBG(LOG_TAG, "%s:is_awx_bus = %d,VehicleDataType: Key = %s, Value: Bus_address = %s, Volume = %f",
+             __func__,
+             is_awx_bus,
+             vehicledatatype.key,
+             bus_address,
+             vol_mb);
+
+    ret = pthread_mutex_lock(&lock);
+    if (ret !=0) {
+      HAR_PAL_ERR(LOG_TAG,": %s pthread_mutex_lock failed", __func__);
+      return ret;
+    }
+
+    uint32_t payload_size = sizeof(pal_param_payload) + sizeof(effect_pal_payload_t) +
+                                 sizeof(pal_effect_custom_payload_t) + sizeof(pal_awx_data_t);
+
+    size_t padBytes = PADDING_8BYTE_ALIGN(payload_size);
+
+    if (strcmp(vehicledatatype.key,"RESTORE_VOLUME") == 0) {
+       //allocate memory for payload
+       payloadInfo = (uint8_t*) calloc(1, payload_size + padBytes);
+        if (!payloadInfo) {
+           HAR_PAL_ERR(LOG_TAG,":%s Memory allocation failure",__func__);
+           ret = pthread_mutex_unlock(&lock);
+           if (ret !=0) {
+              HAR_PAL_ERR(LOG_TAG,":%s pthread_mutex_unlock failed", __func__);
+              return ret;
+           }
+           return -ENOMEM;
+       }
+
+       //Creating payload
+       pal_payload = (pal_param_payload*) payloadInfo;
+       effect_payload = (effect_pal_payload_t*) (payloadInfo + sizeof(pal_param_payload));
+       customPayload = (pal_effect_custom_payload_t*) (payloadInfo + sizeof(pal_param_payload) + sizeof(effect_pal_payload_t));
+
+       pal_payload->payload_size = sizeof(effect_pal_payload_t) + sizeof(pal_effect_custom_payload_t) + sizeof(pal_awx_data_t);
+
+       effect_payload->isTKV = PARAM_NONTKV;
+
+       effect_payload->tag = TAG_MODULE_CUSTOM_AWX;
+       effect_payload->payloadSize = sizeof(pal_effect_custom_payload_t) + sizeof(pal_awx_data_t);
+       customPayload->paramId = AWX_VOLUME;
+       RestoreVolume = (pal_awx_data_t*)customPayload->data;
+       RestoreVolume->sub_func = ((uint16_t)1 << bus_index);
+       RestoreVolume->reserved = 0;
+       RestoreVolume->val[0] = vol_mb;
+
+       status = pal_gef_rw_param(PAL_PARAM_ID_UIEFFECT, (void *) pal_payload, payload_size,
+                              pal_device, PAL_STREAM_PLAYBACK_BUS, GEF_PARAM_WRITE, NULL);
+
+    } else {
+        HAR_PAL_ERR(LOG_TAG,"Unknown VehicleDataType");
+        status = -1;
+        goto cleanup;
+    }
+
+cleanup:
+    if (payloadInfo) {
+        free(payloadInfo);
+        payloadInfo = NULL;
+    }
+    pal_payload = NULL;
+    effect_payload = NULL;
+    customPayload = NULL;
+    ret = pthread_mutex_unlock(&lock);
+    if (ret !=0) {
+        HAR_PAL_ERR(LOG_TAG,": %s pthread_mutex_unlock failed", __func__);
+        return ret;
+    }
+
+    if (status != 0) {
+        HAR_PAL_ERR(LOG_TAG,"Restore Volume  failed with error: %d\n", status);
+    } else {
+        HAR_PAL_INFO(LOG_TAG,"Restore Volume Successful");
+    }
+
+    return status;
+
+}
+
+//Function to register ID-handler mappings
+void registerIdHandler(const char* id, void (*handler)(VehicleDataType)) {
+
+    bool isRegistered = false;
+    for(size_t i =0;i < idHandlerCount; i++) {
+        if (strcmp(id, idHandlerMap[i].id) == 0) {
+               isRegistered = true;
+               break;
+        }
+    }
+
+    if(!isRegistered) {
+       if (idHandlerCount < sizeof(idHandlerMap)/sizeof(idHandlerMap[0])) {
+           idHandlerMap[idHandlerCount].id = id;
+           idHandlerMap[idHandlerCount].handler = handler;
+           idHandlerCount++;
+           HAR_PAL_DBG(LOG_TAG,"Registerd new Id = %s, Count = %d",id, idHandlerCount);
+       } else {
+           HAR_PAL_ERR(LOG_TAG,"IdHandlerMap is Full");
+       }
+    } else {
+        HAR_PAL_DBG(LOG_TAG,"ID %s is already registered", id);
+    }
+}
+
 void get_out_device_id (har_pal_out_device_id_t outDeviceId,
                         struct pal_device *devices)
 {
@@ -253,6 +594,11 @@ PlatformAudioDevices get_audio_device(const char* device_id) {
       HAR_PAL_ERR(LOG_TAG,"HAR_PAL: %s pthread_mutex_lock failed", __func__);
       return audio_device;
     }
+
+    //Initialize the lookup table with known IDs
+    registerIdHandler("AUDIO_PARAM_ID_MUTE", handleMasterMute);
+    registerIdHandler("AUDIO_PARAM_ID_WS", handleWelcomeSequence);
+    registerIdHandler("AUDIO_PARAM_ID_RES_VOL", handleRestoreVolume);
 
     place_markers("kpi_value get_audio_device enter");
     HAR_PAL_DBG(LOG_TAG,"AudioDeviceId = %s",device_id);
@@ -652,7 +998,7 @@ int32_t set_volume(PlatformAudioDevices *har_device, float volume)
     int ret = 0;
     uint32_t channels = HAR_AUDIO_CHANNELS_2;
 
-    HAR_PAL_DBG(LOG_TAG,"%s.Enter",__func__);
+    HAR_PAL_DBG(LOG_TAG,"%s.Enter, volume = %f",__func__, volume);
     if (har_device) {
        if (har_device->channels >= HAR_AUDIO_CHANNELS_1 &&
                 har_device->channels <= HAR_AUDIO_CHANNELS_32) {
@@ -675,7 +1021,7 @@ int32_t set_volume(PlatformAudioDevices *har_device, float volume)
            HAR_PAL_ERR(LOG_TAG,"Unable to set volume");
            ret = pthread_mutex_unlock(&lock);
            if (ret !=0) {
-             HAR_PAL_ERR(LOG_TAG,"HAR_PAL: %s pthread_mutex_unlock failed", __func__);
+             HAR_PAL_ERR(LOG_TAG,": %s pthread_mutex_unlock failed", __func__);
              return ret;
            }
            return -1;
@@ -703,7 +1049,7 @@ int32_t set_volume(PlatformAudioDevices *har_device, float volume)
     }
     ret = pthread_mutex_unlock(&lock);
     if (ret !=0) {
-      HAR_PAL_ERR(LOG_TAG,"HAR_PAL: %s pthread_mutex_unlock failed", __func__);
+      HAR_PAL_ERR(LOG_TAG,": %s pthread_mutex_unlock failed", __func__);
       return ret;
     }
 
@@ -721,7 +1067,7 @@ int32_t StopAndCloseUsecase(PlatformAudioDevices *har_device)
 
     ret = pthread_mutex_lock(&lock);
     if (ret !=0) {
-      HAR_PAL_ERR(LOG_TAG,"HAR_PAL: %s pthread_mutex_lock failed", __func__);
+      HAR_PAL_ERR(LOG_TAG,": %s pthread_mutex_lock failed", __func__);
       return ret;
     }
     place_markers("kpi_value close_device enter");
@@ -790,7 +1136,7 @@ uint32_t set_spatialization(PlatformAudioDevices *har_device, Spatialization val
     pal_param_payload* pal_payload = NULL;
     effect_pal_payload_t* effect_payload = NULL;
     pal_effect_custom_payload_t* customPayload = NULL;
-    pal_awx_spt_data_t* spt_data = NULL;
+    pal_awx_data_t* spt_data = NULL;
     pal_awx_bus_type_t bus_index = BUS_RESERVED;
     pal_device_id_t pal_device = PAL_DEVICE_OUT_SPEAKER;
 
@@ -809,7 +1155,7 @@ uint32_t set_spatialization(PlatformAudioDevices *har_device, Spatialization val
 
     //calculate payload_size
     uint32_t payload_size = sizeof(pal_param_payload) + sizeof(effect_pal_payload_t) +
-                              sizeof(pal_effect_custom_payload_t) + sizeof(pal_awx_spt_data_t);
+                              sizeof(pal_effect_custom_payload_t) + sizeof(pal_awx_data_t);
 
     //assign default value as 0 (FrontCenter)
     if (value < FrontCenter || value > Left) {
@@ -836,10 +1182,10 @@ uint32_t set_spatialization(PlatformAudioDevices *har_device, Spatialization val
     //allocate memory for payload
     payloadInfo = (uint8_t*) calloc(1, payload_size + padBytes);
     if (!payloadInfo) {
-        HAR_PAL_ERR(LOG_TAG,"HAR_PAL: %s Memory allocation failure",__func__);
+        HAR_PAL_ERR(LOG_TAG,": %s Memory allocation failure",__func__);
         ret = pthread_mutex_unlock(&lock);
         if (ret !=0) {
-           HAR_PAL_ERR(LOG_TAG,"HAR_PAL: %s pthread_mutex_unlock failed", __func__);
+           HAR_PAL_ERR(LOG_TAG,": %s pthread_mutex_unlock failed", __func__);
            return ret;
          }
         return -ENOMEM;
@@ -852,17 +1198,17 @@ uint32_t set_spatialization(PlatformAudioDevices *har_device, Spatialization val
                        + sizeof(effect_pal_payload_t));
 
     pal_payload->payload_size = sizeof(effect_pal_payload_t) + sizeof(pal_effect_custom_payload_t)
-                                  + sizeof(pal_awx_spt_data_t);
+                                  + sizeof(pal_awx_data_t);
 
     effect_payload->isTKV = PARAM_NONTKV;
 
     // check for AWX BUS to handle spatialization appropriately
     if (is_awx_bus) {
         effect_payload->tag = TAG_MODULE_CUSTOM_AWX;
-        effect_payload->payloadSize = sizeof(pal_effect_custom_payload_t) + sizeof(pal_awx_spt_data_t);
+        effect_payload->payloadSize = sizeof(pal_effect_custom_payload_t) + sizeof(pal_awx_data_t);
         customPayload->paramId = AWX_SPATIALIZATION;
-        spt_data = (pal_awx_spt_data_t*)customPayload->data;
-        spt_data->spt_func = ((uint16_t)1 << bus_index);
+        spt_data = (pal_awx_data_t*)customPayload->data;
+        spt_data->sub_func = ((uint16_t)1 << bus_index);
         spt_data->reserved = 0;
         spt_data->val[0] = value;
         HAR_PAL_VERBOSE(LOG_TAG,"AWX Bus idx= %d,bus_addr= %s,awx_bus= %d,paramId= %x,tagid= %x",
@@ -889,7 +1235,7 @@ cleanup:
     spt_data = NULL;
     ret = pthread_mutex_unlock(&lock);
     if (ret !=0) {
-      HAR_PAL_ERR(LOG_TAG,"HAR_PAL: %s pthread_mutex_unlock failed", __func__);
+      HAR_PAL_ERR(LOG_TAG,": %s pthread_mutex_unlock failed", __func__);
       return ret;
     }
 
@@ -902,8 +1248,29 @@ cleanup:
     return status;
 }
 
-uint32_t set_custom_parameter(PlatformAudioDevices *har_device, char *id, union value val) {
-        int status = 0;
-        HAR_PAL_DBG(LOG_TAG,"%s To be Implemented.WIP",__func__);
-        return status;
+uint32_t set_custom_parameter(const char *id, VehicleDataType vehicledatatype) {
+
+    uint32_t result = 0;
+
+    if (id == NULL || strlen(id) == 0) {
+       HAR_PAL_ERR(LOG_TAG,"Invalid ID");
+       return -1;
+    }
+    HAR_PAL_DBG(LOG_TAG,"%s : ID = %s",__func__, id);
+    //Lookup the ID in the lookup table
+    for (size_t i =0; i < idHandlerCount; i++) {
+        if (strcmp(id, idHandlerMap[i].id) == 0) {
+            //Call corresponding handler and get its return value
+            result = idHandlerMap[i].handler(vehicledatatype);
+            break;
+        }
+    }
+
+    if (result != 0) {
+        HAR_PAL_ERR(LOG_TAG, "set_custom_parameter failed with error: %d", result);
+    } else {
+        HAR_PAL_DBG(LOG_TAG, "set_custom_parameter successful");
+    }
+
+    return result;
 }

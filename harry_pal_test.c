@@ -81,7 +81,7 @@ Spatialization stringToEnum(const char *str) {
     }
 }
 
-void sample_write(FILE *file, struct chunk_fmt fmt)
+void sample_write(PlatformAudioDevices *platform_device,FILE *file, struct chunk_fmt fmt)
 {
     char *buffer;
     uint32_t size;
@@ -139,6 +139,11 @@ int main(int argc, char *argv[])
     char *filename;
     int more_chunks = 1;
     char ch[3];
+    char *id = "AUDIO_PARAM_ID_MUTE";
+    char *key = "CYBER_MASTER_MUTE";
+    int value = 0;
+    float rvol = 0.0;
+    const char *bus_address = NULL;
     int status = 0;
     float vol = -3100.0;
     Spatialization spt = Center;
@@ -194,9 +199,49 @@ int main(int argc, char *argv[])
             argv++;
             if (*argv)
                 spt = stringToEnum(*argv);
-        }
-        if (*argv)
+        } else if (strcmp(*argv, "-id") == 0) {
             argv++;
+            if (*argv)
+                id = *argv;
+        } else if (strcmp(*argv, "-key") == 0) {
+            argv++;
+            if (*argv)
+                key = *argv;
+        } else if (strcmp(*argv, "-value") == 0) {
+            argv++;
+            if (*argv)
+               value = atoi(*argv);
+        } else if (strcmp(*argv, "-rvol") == 0) {
+            argv++;
+            if (*argv)
+               rvol = atof(*argv);
+        } else if (strcmp(*argv, "-bus") == 0) {
+            argv++;
+            if (*argv)
+               bus_address = *argv;
+        }
+          if (*argv)
+            argv++;
+    }
+
+   VehicleDataType vehicledatatype;
+   strlcpy(vehicledatatype.key, key, MAX_ADDRESS_LEN);
+
+   if (strcmp(key, "CYBER_MASTER_MUTE") == 0 ||
+        strcmp(key, "TCU_MUTE") == 0 ||
+        strcmp(key, "STATIC_POWER_LIMITATION") == 0 ||
+        strcmp(key, "DELIVERY_MODE") == 0 ||
+        strcmp(key, "PLAYBACK_STATUS") == 0) {
+           vehicledatatype.value.paramVal.value = value;
+    } else if (strcmp(key, "RESTORE_VOLUME") == 0) {
+           vehicledatatype.value.volume.volValue = rvol;
+            if (bus_address) {
+              strlcpy(vehicledatatype.value.volume.bus_addr, bus_address, MAX_ADDRESS_LEN);
+            } else {
+              fprintf(stdout, "Error: Bus address is required for restore volume\n");
+            }
+    } else {
+       fprintf(stdout, "Error:Unsupported Key\n");
     }
 
     if (argc > 1) {
@@ -218,13 +263,15 @@ int main(int argc, char *argv[])
                 }
                 set_volume(&platform_device, vol);
                 set_spatialization(&platform_device, spt);
-                sample_write(file,chunk_fmt);
+                set_custom_parameter(id, vehicledatatype);
+                fprintf(stdout, "\n set_custom_parameter called\n");
+                sample_write(&platform_device,file,chunk_fmt);
                 disable_usecase();
                 fclose(file);
                 break;
             case 'w' :
                 platform_device = get_audio_device("WARN");
-                fprintf(stdout, "platform_device.device_id = %d\n", platform_device.device_id);
+                fprintf(stdout, "platform_device.device_id = %d channels = %d\n", platform_device.device_id, platform_device.channels);
                 status = Open_Device(&platform_device);
                 if (status) {
                     fprintf(stdout, "Open_Device failed\n");
@@ -232,13 +279,15 @@ int main(int argc, char *argv[])
                 }
                 set_volume(&platform_device, vol);
                 set_spatialization(&platform_device, spt);
-                sample_write(file,chunk_fmt);
+                set_custom_parameter(id, vehicledatatype);
+                fprintf(stdout, "\n set_custom_parameter called\n");
+                sample_write(&platform_device,file,chunk_fmt);
                 disable_usecase();
                 fclose(file);
                 break;
             case 'r' :
                 platform_device = get_audio_device("ROAD-ADAS");
-                fprintf(stdout, "platform_device.device_id = %d\n", platform_device.device_id);
+                fprintf(stdout, "platform_device.device_id = %d channels = %d\n", platform_device.device_id, platform_device.channels);
                 status = Open_Device(&platform_device);
                 if (status) {
                     fprintf(stdout, "Open_Device failed\n");
@@ -246,13 +295,15 @@ int main(int argc, char *argv[])
                 }
                 set_volume(&platform_device, vol);
                 set_spatialization(&platform_device, spt);
-                sample_write(file,chunk_fmt);
+                set_custom_parameter(id, vehicledatatype);
+                fprintf(stdout, "\n set_custom_parameter called\n");
+                sample_write(&platform_device,file,chunk_fmt);
                 disable_usecase();
                 fclose(file);
                 break;
             case 't' :
                 platform_device = get_audio_device("SWARN");
-                fprintf(stdout, "platform_device.device_id = %d\n", platform_device.device_id);
+                fprintf(stdout, "platform_device.device_id = %d channels = %d\n", platform_device.device_id, platform_device.channels);
                 status = Open_Device(&platform_device);
                 if (status) {
                     fprintf(stdout, "Open_Device failed\n");
@@ -260,7 +311,9 @@ int main(int argc, char *argv[])
                 }
                 set_volume(&platform_device, vol);
                 set_spatialization(&platform_device, spt);
-                sample_write(file,chunk_fmt);
+                set_custom_parameter(id, vehicledatatype);
+                fprintf(stdout, "\n set_custom_parameter called\n");
+                sample_write(&platform_device,file,chunk_fmt);
                 disable_usecase();
                 fclose(file);
                 break;

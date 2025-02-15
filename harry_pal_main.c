@@ -12,6 +12,7 @@
 #include <dlfcn.h>
 #include <pthread.h>
 #include <sys/resource.h>
+#include <cutils/properties.h>
 
 #define PCM_DEVICE_NAME_DEFAULT "default"
 #define PERIOD_SIZE 240
@@ -73,6 +74,62 @@ typedef enum {
     // Add new OUT devices here, increment MAX and MIN below when you do so
     HAR_PAL_DEVICE_OUT_MAX = 8,
 } har_pal_out_device_id_t;
+
+static int wait_for_snd_card_to_online()
+{
+    int ret = 0;
+    int retries = MAX_RETRY;
+    int fd = -1;
+    char buf[12];
+    snd_card_status_t card_status = SND_CARD_STATUS_NONE;
+
+    /* wait here till snd card is registered                               */
+    /* maximum wait period = (MAX_RETRY * RETRY_INTERVAL_US) micro-seconds */
+    do {
+        if ((fd = open(SNDCARD_PATH, O_RDWR)) < 0) {
+            HAR_PAL_ERR(LOG_TAG,": Failed to open snd sysfs node, will retry for %d times ...", (retries - 1));
+        } else {
+            memset(buf , 0 ,sizeof(buf));
+            lseek(fd,0L,SEEK_SET);
+            read(fd, buf, 1);
+            close(fd);
+            fd = -1;
+
+            buf[sizeof(buf) - 1] = '\0';
+            card_status = SND_CARD_STATUS_NONE;
+            sscanf(buf , "%u", &card_status);
+
+            if (card_status == SND_CARD_STATUS_ONLINE) {
+                HAR_PAL_DBG(LOG_TAG,": snd sysfs node open successful");
+                break;
+            }
+        }
+        retries--;
+        sleep(RETRY_INTERVAL);
+    } while ( retries > 0);
+
+    if (0 == retries) {
+        HAR_PAL_ERR(LOG_TAG,": Failed to open snd sysfs node, exiting ... ");
+        ret = -EIO;
+    }
+
+    return ret;
+}
+
+static int32_t auto_audio_ar_ext_wait_agm(void)
+{
+    char agm_state[PROPERTY_VALUE_MAX];
+    while (1) {
+        property_get("init.svc.vendor.agm-1-0", agm_state, AGM_DEFAULT_STATE);
+        if (!strcmp(agm_state, "running")) {
+            break;
+        } else {
+            HAR_PAL_INFO(LOG_TAG,"wait agm for 10 ms");
+            usleep(AGM_INIT_SLEEP_WAIT*1000);
+        }
+    }
+    return 0;
+}
 
 int checkIfAWXBus(char* address, pal_awx_bus_type_t* bus_index)
 {
@@ -742,6 +799,12 @@ int32_t Open_Device(PlatformAudioDevices *har_device) {
       goto exit;
     }
     if (pal_init_status == 0) {
+        ret = wait_for_snd_card_to_online();
+          if (ret) {
+             HAR_PAL_ERR(LOG_TAG,"Not found any SND card online\n");
+             return ret;
+           }
+        auto_audio_ar_ext_wait_agm();
         err = pal_init();
         if (err) {
             HAR_PAL_ERR(LOG_TAG,"pal_init failed");
@@ -1096,32 +1159,6 @@ int32_t StopAndCloseUsecase(PlatformAudioDevices *har_device)
     HAR_PAL_DBG(LOG_TAG,"%s.Exit",__func__);
     place_markers("kpi_value close_device exit");
     return status;
-}
-
-bool checkIfAWXBus(char* address, pal_awx_bus_type_t* bus_index)
-{
-  bool bus_match = false ;
-
-  if (NULL != bus_index)
-  {
-    // Assing the BUS To MAX address
-    *bus_index = BUS_RESERVED;
-    // Check if the bus address is a valid AWX BUS_ADDRESS
-    for (int i=0; i<BUS_RESERVED ; i++)
-    {
-        HAR_PAL_DBG(LOG_TAG,"%s address %s index %d\n", __func__,address,i);
-        if (strncmp((char *)bus_address[i], (char *)address,strlen(address)) == 0)
-        {
-            bus_match = true;
-            // Assing the index value and send it
-            *bus_index =  (pal_awx_bus_type_t)(i);
-            HAR_PAL_DBG(LOG_TAG,"%s address %s index %d\n", __func__,address,*bus_index);
-            break;
-        }
-     }
-   }
-   HAR_PAL_INFO(LOG_TAG, "%s, bus_match = %d",__func__, bus_match);
-   return bus_match;
 }
 
 /*C implementation of set_spatialization() API from Harry.

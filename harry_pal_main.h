@@ -22,6 +22,15 @@
 #define ID_FMT  0x20746d66
 #define ID_DATA 0x61746164
 
+#define AGM_INIT_SLEEP_WAIT 10 /* 10 ms */
+#define SNDCARD_PATH "/sys/kernel/snd_card/card_state"
+#define MAX_RETRY 100 /*Device will try these many times before return an error*/
+#define RETRY_INTERVAL 1 /*Retry interval in seconds*/
+
+#ifndef AGM_DEFAULT_STATE
+#define AGM_DEFAULT_STATE "\0"
+#endif
+
 #define MAX_ADDRESS_LEN 100
 #define MAX_DEVICES 4
 #define AWX_VOLUME             0x11112501
@@ -59,6 +68,12 @@ struct chunk_fmt {
     uint16_t block_align;
     uint16_t bits_per_sample;
 };
+
+typedef enum snd_card_status_t {
+    SND_CARD_STATUS_OFFLINE = 0,
+    SND_CARD_STATUS_ONLINE,
+    SND_CARD_STATUS_NONE,
+} snd_card_status_t;
 
 typedef enum {
     /// 8000

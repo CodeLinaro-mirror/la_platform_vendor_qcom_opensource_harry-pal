@@ -85,31 +85,43 @@ void sample_write(PlatformAudioDevices *platform_device,FILE *file, struct chunk
 {
     char *buffer;
     uint32_t size;
-    uint32_t num_read;
-    ssize_t bytes;
+    size_t num_read;
+    int32_t written;
+    uint32_t bytes;
+    uint32_t total_read = 0;
     fprintf(stdout, "Enabling write\n");
     place_markers("kpi_value HarPalTest start playback");
 
-    size = buffer_size_bytes(&platform_device);
+    size = buffer_size_bytes(platform_device);
     fprintf(stdout, "size = %d\n",size);
-    buffer = malloc(size + 10);
+    buffer = malloc(size);
+
     if (!buffer) {
         printf("Unable to allocate %d size\n", size);
+        fclose(file);
     }
 
-    playback_rate(&platform_device);
+    memset(buffer, 0 , size);
+    bytes = size/4;
+    fprintf(stdout, "bytes = %d\n",bytes);
+
+    playback_rate(platform_device);
 
     /* catch ctrl-c to shutdown cleanly */
     signal(SIGINT, stream_close);
 
     do {
-        num_read = fread(buffer, 1, size, file);
+        num_read = fread(buffer, 1, bytes, file);
         if (num_read > 0) {
-            if(!try_play_bytes(&platform_device, buffer,size)) {
-                fprintf(stdout, "Error playing sample\n");
-                break;
+           written = try_play_bytes(platform_device,buffer,bytes);
+            if (written < 0) {
+              fprintf(stdout, "Write Failed\n");
+              break;
+            } else if (written != num_read) {
+                 fprintf(stdout, "Partial write: expected %zu, wrote %d\n", num_read, written);
             }
         }
+      usleep(9000);
     } while (!streamClose && num_read > 0);
 
     free(buffer);
@@ -211,11 +223,7 @@ int main(int argc, char *argv[])
             argv++;
             if (*argv)
                value = atoi(*argv);
-        } else if (strcmp(*argv, "-rvol") == 0) {
-            argv++;
-            if (*argv)
-               rvol = atof(*argv);
-        } else if (strcmp(*argv, "-bus") == 0) {
+        } else if (strcmp(*argv, "-rvalue") == 0) {
             argv++;
             if (*argv)
                bus_address = *argv;
@@ -232,14 +240,18 @@ int main(int argc, char *argv[])
         strcmp(key, "STATIC_POWER_LIMITATION") == 0 ||
         strcmp(key, "DELIVERY_MODE") == 0 ||
         strcmp(key, "PLAYBACK_STATUS") == 0) {
-           vehicledatatype.value.paramVal.value = value;
+          vehicledatatype.value.integer_data = value;
     } else if (strcmp(key, "RESTORE_VOLUME") == 0) {
-           vehicledatatype.value.volume.volValue = rvol;
-            if (bus_address) {
-              strlcpy(vehicledatatype.value.volume.bus_addr, bus_address, MAX_ADDRESS_LEN);
-            } else {
-              fprintf(stdout, "Error: Bus address is required for restore volume\n");
+         if (bus_address) {
+            vehicledatatype.value.string_data = malloc(strlen(bus_address)+1);
+            if (!vehicledatatype.value.string_data) {
+               fprintf(stdout, "Unable to initialise memory\n");
             }
+            strlcpy(vehicledatatype.value.string_data, bus_address, strlen(bus_address)+1);
+         } else {
+            vehicledatatype.value.string_data = "BUS00_WS,-3100; BUS01_no_ASIL,-3100;";
+            fprintf(stdout, "Error: Bus address not provided using default\n");
+         }
     } else {
        fprintf(stdout, "Error:Unsupported Key\n");
     }

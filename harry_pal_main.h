@@ -247,21 +247,13 @@ typedef struct {
 } Type2_param;
 
 typedef struct {
-    int FL;
-    int FR;
-    int RL;
-    int RR;
-} VectorValue;
-
-typedef struct {
     char bus_addr[100];      //Bus Address for which volume needs to be restored
     float volValue;          //Value to restore the volume
 } VolumeData;
 
 typedef union {
-    Type2_param paramVal;    //Indicates type2_param value (true/false, start/complete)
-    VectorValue vector;      //Indicates value is a vector (FL,FR,RL,RR)
-    VolumeData volume;       //Indicates volume data (Bus Address and Volume)
+    int integer_data;
+    const char* string_data;
 } DataValue;
 
 typedef struct {

@@ -131,6 +131,40 @@ static int32_t auto_audio_ar_ext_wait_agm(void)
     return 0;
 }
 
+VolumeData* parse_volume_string(const char *input, int *count){
+    *count = 0;
+    char *tokptr;
+    char *buffer = malloc(strlen(input) + 1);
+    if (!buffer){
+        HAR_PAL_ERR(LOG_TAG,"Unable to allocate memory");
+        return NULL;
+    }
+
+    //alocate list for total devices
+    VolumeData *volList = malloc(10*sizeof(VolumeData));
+    if (!volList){
+        HAR_PAL_ERR(LOG_TAG,"Unable to allocate memory");
+        free(buffer);
+        return NULL;
+    }
+
+    strlcpy(buffer,input,strlen(input)+1);
+    HAR_PAL_DBG(LOG_TAG,"parse_volume_string strlcpy %s\n",buffer);
+    char *segment = strtok_r(buffer,";",&tokptr);
+    while(segment != NULL){
+        if(sscanf(segment, " %[^,],%d",volList[*count].bus_addr,&volList[*count].volValue) == 2){
+            HAR_PAL_DBG(LOG_TAG,"name %s , data = %d",
+                        volList[*count].bus_addr,volList[*count].volValue);
+            (*count)++;
+        } else {
+            HAR_PAL_ERR(LOG_TAG,"Invalid segment: %s\n",segment);
+        }
+        segment = strtok_r(NULL,";",&tokptr);
+    }
+    free(buffer);
+    return volList;
+}
+
 int checkIfAWXBus(char* address, pal_awx_bus_type_t* bus_index)
 {
     int bus_match = 0 ;
@@ -172,7 +206,7 @@ uint32_t handleMasterMute(VehicleDataType vehicledatatype) {
     HAR_PAL_DBG(LOG_TAG, "%s:VehicleDataType: Key = %s, Value  = %d",
              __func__,
              vehicledatatype.key,
-             vehicledatatype.value.paramVal.value);
+             vehicledatatype.value.integer_data);
 
 
      ret = pthread_mutex_lock(&lock);
@@ -216,7 +250,7 @@ uint32_t handleMasterMute(VehicleDataType vehicledatatype) {
         effect_payload->payloadSize = sizeof(pal_effect_custom_payload_t) + sizeof(Type2_param);
         customPayload->paramId = AWX_CYBER_MASTER_MUTE;
         MasterMute = (Type2_param*)customPayload->data;
-        MasterMute->value = vehicledatatype.value.paramVal.value;
+        MasterMute->value = vehicledatatype.value.integer_data;
 
         status = pal_gef_rw_param(PAL_PARAM_ID_UIEFFECT, (void *) pal_payload, payload_size,
                               pal_device, PAL_STREAM_PLAYBACK_BUS, GEF_PARAM_WRITE, NULL);
@@ -265,7 +299,7 @@ uint32_t handleWelcomeSequence(VehicleDataType vehicledatatype) {
     HAR_PAL_DBG(LOG_TAG, "%s:VehicleDataType: Key = %s, Value  = %d",
              __func__,
              vehicledatatype.key,
-             vehicledatatype.value.paramVal.value);
+             vehicledatatype.value.integer_data);
 
 
      ret = pthread_mutex_lock(&lock);
@@ -305,7 +339,7 @@ uint32_t handleWelcomeSequence(VehicleDataType vehicledatatype) {
         effect_payload->payloadSize = sizeof(pal_effect_custom_payload_t) + sizeof(Type2_param);
         customPayload->paramId = AWX_WELCOME_MODE;
         WelcomeState = (Type2_param*)customPayload->data;
-        WelcomeState->value = vehicledatatype.value.paramVal.value;
+        WelcomeState->value = vehicledatatype.value.integer_data;
 
         status = pal_gef_rw_param(PAL_PARAM_ID_UIEFFECT, (void *) pal_payload, payload_size,
                               pal_device, PAL_STREAM_PLAYBACK_BUS, GEF_PARAM_WRITE, NULL);
@@ -354,75 +388,85 @@ uint32_t handleRestoreVolume(VehicleDataType vehicledatatype) {
     pal_awx_data_t* RestoreVolume = NULL;
     pal_awx_bus_type_t bus_index = BUS_RESERVED;
     pal_device_id_t pal_device = PAL_DEVICE_OUT_SPEAKER;
+    int count;
 
     key = vehicledatatype.key;
-    bus_address = vehicledatatype.value.volume.bus_addr;
-    vol_mb = vehicledatatype.value.volume.volValue;
 
-    if (bus_address == NULL) {
-       HAR_PAL_ERR(LOG_TAG, "%s:Invalid Bus Address",__func__);
-       return -1;
-    }
+    HAR_PAL_DBG(LOG_TAG, "%s:key = %s string= %s",__func__,key,vehicledatatype.value.string_data);
+    VolumeData *list = parse_volume_string(vehicledatatype.value.string_data,&count);
+    HAR_PAL_DBG(LOG_TAG,"parse_volume_string after list\n");
 
-    int is_awx_bus = checkIfAWXBus(bus_address, &bus_index) && bus_index != BUS_RESERVED;
+    if(list) {
+        ret = pthread_mutex_lock(&lock);
+        if (ret !=0) {
+            HAR_PAL_ERR(LOG_TAG,": %s pthread_mutex_lock failed", __func__);
+            return ret;
+        }
 
-    HAR_PAL_DBG(LOG_TAG, "%s:is_awx_bus = %d,VehicleDataType: Key = %s, Value: Bus_address = %s, Volume = %f",
-             __func__,
-             is_awx_bus,
-             vehicledatatype.key,
-             bus_address,
-             vol_mb);
+        uint32_t payload_size = sizeof(pal_param_payload) + sizeof(effect_pal_payload_t) +
+                                    sizeof(pal_effect_custom_payload_t) + sizeof(pal_awx_data_t);
 
-    ret = pthread_mutex_lock(&lock);
-    if (ret !=0) {
-      HAR_PAL_ERR(LOG_TAG,": %s pthread_mutex_lock failed", __func__);
-      return ret;
-    }
+        size_t padBytes = PADDING_8BYTE_ALIGN(payload_size);
 
-    uint32_t payload_size = sizeof(pal_param_payload) + sizeof(effect_pal_payload_t) +
-                                 sizeof(pal_effect_custom_payload_t) + sizeof(pal_awx_data_t);
+        if (strcmp(vehicledatatype.key,"RESTORE_VOLUME") == 0) {
+            //allocate memory for payload
+            payloadInfo = (uint8_t*) calloc(1, payload_size + padBytes);
+            if (!payloadInfo) {
+               HAR_PAL_ERR(LOG_TAG,":%s Memory allocation failure",__func__);
+               ret = pthread_mutex_unlock(&lock);
+               if (ret !=0) {
+                  HAR_PAL_ERR(LOG_TAG,":%s pthread_mutex_unlock failed", __func__);
+                  return ret;
+               }
+               return -ENOMEM;
+            }
 
-    size_t padBytes = PADDING_8BYTE_ALIGN(payload_size);
+            //Creating payload
+            pal_payload = (pal_param_payload*) payloadInfo;
+            effect_payload = (effect_pal_payload_t*) (payloadInfo + sizeof(pal_param_payload));
+            customPayload = (pal_effect_custom_payload_t*) (payloadInfo +
+                                    sizeof(pal_param_payload) + sizeof(effect_pal_payload_t));
 
-    if (strcmp(vehicledatatype.key,"RESTORE_VOLUME") == 0) {
-       //allocate memory for payload
-       payloadInfo = (uint8_t*) calloc(1, payload_size + padBytes);
-        if (!payloadInfo) {
-           HAR_PAL_ERR(LOG_TAG,":%s Memory allocation failure",__func__);
-           ret = pthread_mutex_unlock(&lock);
-           if (ret !=0) {
-              HAR_PAL_ERR(LOG_TAG,":%s pthread_mutex_unlock failed", __func__);
-              return ret;
-           }
-           return -ENOMEM;
-       }
+            pal_payload->payload_size = sizeof(effect_pal_payload_t) +
+                              sizeof(pal_effect_custom_payload_t) + sizeof(pal_awx_data_t);
 
-       //Creating payload
-       pal_payload = (pal_param_payload*) payloadInfo;
-       effect_payload = (effect_pal_payload_t*) (payloadInfo + sizeof(pal_param_payload));
-       customPayload = (pal_effect_custom_payload_t*) (payloadInfo + sizeof(pal_param_payload) + sizeof(effect_pal_payload_t));
+            effect_payload->isTKV = PARAM_NONTKV;
 
-       pal_payload->payload_size = sizeof(effect_pal_payload_t) + sizeof(pal_effect_custom_payload_t) + sizeof(pal_awx_data_t);
+            effect_payload->tag = TAG_MODULE_CUSTOM_AWX;
+            effect_payload->payloadSize = sizeof(pal_effect_custom_payload_t) + sizeof(pal_awx_data_t);
+            customPayload->paramId = AWX_VOLUME;
+            RestoreVolume = (pal_awx_data_t*)customPayload->data;
 
-       effect_payload->isTKV = PARAM_NONTKV;
+            for (int i = 0;i < count; i++) {
+                bus_address = list[i].bus_addr;
+                vol_mb = list[i].volValue;
 
-       effect_payload->tag = TAG_MODULE_CUSTOM_AWX;
-       effect_payload->payloadSize = sizeof(pal_effect_custom_payload_t) + sizeof(pal_awx_data_t);
-       customPayload->paramId = AWX_VOLUME;
-       RestoreVolume = (pal_awx_data_t*)customPayload->data;
-       RestoreVolume->sub_func = ((uint16_t)1 << bus_index);
-       RestoreVolume->reserved = 0;
-       RestoreVolume->val[0] = vol_mb;
+                if (bus_address == NULL) {
+                    HAR_PAL_ERR(LOG_TAG, "%s:Invalid Bus Address",__func__);
+                    return -1;
+                }
 
-       status = pal_gef_rw_param(PAL_PARAM_ID_UIEFFECT, (void *) pal_payload, payload_size,
-                              pal_device, PAL_STREAM_PLAYBACK_BUS, GEF_PARAM_WRITE, NULL);
+                int is_awx_bus = checkIfAWXBus(bus_address, &bus_index) && bus_index != BUS_RESERVED;
 
+                HAR_PAL_DBG(LOG_TAG,
+                  "%s:is_awx_bus = %d,VehicleDataType: Key = %s, Value: Bus_address = %s, Volume = %f",
+                            __func__, is_awx_bus, vehicledatatype.key, bus_address,vol_mb);
+
+                RestoreVolume->sub_func = ((uint16_t)1 << bus_index);
+                RestoreVolume->reserved = 0;
+                RestoreVolume->val[0] = vol_mb;
+
+                status = pal_gef_rw_param(PAL_PARAM_ID_UIEFFECT, (void *) pal_payload, payload_size,
+                                  pal_device, PAL_STREAM_PLAYBACK_BUS, GEF_PARAM_WRITE, NULL);
+            }
+        } else {
+            HAR_PAL_ERR(LOG_TAG,"Unknown VehicleDataType");
+            status = -1;
+            goto cleanup;
+        }
     } else {
-        HAR_PAL_ERR(LOG_TAG,"Unknown VehicleDataType");
-        status = -1;
-        goto cleanup;
+        HAR_PAL_ERR(LOG_TAG,"list empty");
     }
-
 cleanup:
     if (payloadInfo) {
         free(payloadInfo);

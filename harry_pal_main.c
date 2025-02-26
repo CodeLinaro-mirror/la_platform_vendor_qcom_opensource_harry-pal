@@ -152,8 +152,8 @@ VolumeData* parse_volume_string(const char *input, int *count){
     HAR_PAL_DBG(LOG_TAG,"parse_volume_string strlcpy %s\n",buffer);
     char *segment = strtok_r(buffer,";",&tokptr);
     while(segment != NULL){
-        if(sscanf(segment, " %[^,],%d",volList[*count].bus_addr,&volList[*count].volValue) == 2){
-            HAR_PAL_DBG(LOG_TAG,"name %s , data = %d",
+        if(sscanf(segment, " %[^,],%f",volList[*count].bus_addr,&volList[*count].volValue) == 2){
+            HAR_PAL_DBG(LOG_TAG,"name %s , data = %f",
                         volList[*count].bus_addr,volList[*count].volValue);
             (*count)++;
         } else {
@@ -1049,7 +1049,7 @@ uint32_t playback_rate(PlatformAudioDevices *har_device)
 {
     uint32_t pb_rate = 0;
     if (har_device) {
-        uint32_t buffer_size = buffer_size_bytes(&har_device);
+        uint32_t buffer_size = buffer_size_bytes(har_device);
         if (har_device->sample_rate >= HAR_AUDIO_RATE_8KHZ &&
                 har_device->sample_rate <= HAR_AUDIO_RATE_192KHZ) {
             pb_rate = (buffer_size * har_device->sample_rate);

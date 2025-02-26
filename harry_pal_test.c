@@ -88,7 +88,7 @@ void sample_write(PlatformAudioDevices *platform_device,FILE *file, struct chunk
     size_t num_read;
     int32_t written;
     uint32_t bytes;
-    uint32_t total_read = 0;
+
     fprintf(stdout, "Enabling write\n");
     place_markers("kpi_value HarPalTest start playback");
 
@@ -113,15 +113,14 @@ void sample_write(PlatformAudioDevices *platform_device,FILE *file, struct chunk
     do {
         num_read = fread(buffer, 1, bytes, file);
         if (num_read > 0) {
-           written = try_play_bytes(platform_device,buffer,bytes);
+            written = try_play_bytes(platform_device,buffer,bytes);
             if (written < 0) {
-              fprintf(stdout, "Write Failed\n");
-              break;
+                fprintf(stdout, "Write Failed\n");
+                break;
             } else if (written != num_read) {
-                 fprintf(stdout, "Partial write: expected %zu, wrote %d\n", num_read, written);
+                fprintf(stdout, "Partial write: expected %zu, wrote %d\n", num_read, written);
             }
         }
-      usleep(9000);
     } while (!streamClose && num_read > 0);
 
     free(buffer);

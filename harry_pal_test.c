@@ -81,7 +81,7 @@ Spatialization stringToEnum(const char *str) {
     }
 }
 
-void sample_write(PlatformAudioDevices *platform_device,FILE *file, struct chunk_fmt fmt)
+void sample_write(PlatformAudioDevices *platform_device,FILE *file, long data_pointer,int iter)
 {
     char *buffer;
     uint32_t size;
@@ -110,18 +110,22 @@ void sample_write(PlatformAudioDevices *platform_device,FILE *file, struct chunk
     /* catch ctrl-c to shutdown cleanly */
     signal(SIGINT, stream_close);
 
-    do {
-        num_read = fread(buffer, 1, bytes, file);
-        if (num_read > 0) {
-            written = try_play_bytes(platform_device,buffer,bytes);
-            if (written < 0) {
-                fprintf(stdout, "Write Failed\n");
-                break;
-            } else if (written != num_read) {
-                fprintf(stdout, "Partial write: expected %zu, wrote %d\n", num_read, written);
+    for (int i = 0; i < iter; i++) {
+        fprintf(stdout, "iteration=%d\n",i);
+        do {
+            num_read = fread(buffer, 1, bytes, file);
+            if (num_read > 0) {
+                written = try_play_bytes(platform_device,buffer,bytes);
+                if (written < 0) {
+                    fprintf(stdout, "Write Failed\n");
+                    break;
+                } else if (written != num_read) {
+                    fprintf(stdout, "Partial write: expected %zu, wrote %d\n", num_read, written);
+                }
             }
-        }
-    } while (!streamClose && num_read > 0);
+        } while (!streamClose && num_read > 0);
+        fseek(file,data_pointer,SEEK_SET);
+    }
 
     free(buffer);
     place_markers("kpi_value HarPalTest done playing");
@@ -149,6 +153,8 @@ int main(int argc, char *argv[])
     struct chunk_fmt chunk_fmt;
     char *filename;
     int more_chunks = 1;
+    long data_pointer = 0;
+    int iter = 1;
     char ch[3];
     char *id = "AUDIO_PARAM_ID_MUTE";
     char *key = "CYBER_MASTER_MUTE";
@@ -192,6 +198,7 @@ int main(int argc, char *argv[])
         case ID_DATA:
             /* Stop looking for chunks */
             more_chunks = 0;
+            data_pointer = ftell(file);
             break;
         default:
             /* Unknown chunk, skip bytes */
@@ -222,6 +229,10 @@ int main(int argc, char *argv[])
             argv++;
             if (*argv)
                value = atoi(*argv);
+        }else if (strcmp(*argv, "-iter") == 0) {
+            argv++;
+            if (*argv)
+               iter = atoi(*argv);
         } else if (strcmp(*argv, "-rvalue") == 0) {
             argv++;
             if (*argv)
@@ -276,7 +287,7 @@ int main(int argc, char *argv[])
                 set_spatialization(&platform_device, spt);
                 set_custom_parameter(id, vehicledatatype);
                 fprintf(stdout, "\n set_custom_parameter called\n");
-                sample_write(&platform_device,file,chunk_fmt);
+                sample_write(&platform_device,file,data_pointer,iter);
                 disable_usecase();
                 fclose(file);
                 break;
@@ -292,7 +303,7 @@ int main(int argc, char *argv[])
                 set_spatialization(&platform_device, spt);
                 set_custom_parameter(id, vehicledatatype);
                 fprintf(stdout, "\n set_custom_parameter called\n");
-                sample_write(&platform_device,file,chunk_fmt);
+                sample_write(&platform_device,file,data_pointer,iter);
                 disable_usecase();
                 fclose(file);
                 break;
@@ -308,7 +319,7 @@ int main(int argc, char *argv[])
                 set_spatialization(&platform_device, spt);
                 set_custom_parameter(id, vehicledatatype);
                 fprintf(stdout, "\n set_custom_parameter called\n");
-                sample_write(&platform_device,file,chunk_fmt);
+                sample_write(&platform_device,file,data_pointer,iter);
                 disable_usecase();
                 fclose(file);
                 break;
@@ -324,7 +335,7 @@ int main(int argc, char *argv[])
                 set_spatialization(&platform_device, spt);
                 set_custom_parameter(id, vehicledatatype);
                 fprintf(stdout, "\n set_custom_parameter called\n");
-                sample_write(&platform_device,file,chunk_fmt);
+                sample_write(&platform_device,file,data_pointer,iter);
                 disable_usecase();
                 fclose(file);
                 break;

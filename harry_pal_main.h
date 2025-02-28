@@ -287,7 +287,7 @@ PlatformAudioDevices get_audio_device(const char* device_id);
 PlatformAudioDevices load_default_config(const char* device);
 void channel_map(uint8_t* ch_map, int channels);
 int32_t Open_Device(PlatformAudioDevices *har_device);
-void sample_write(PlatformAudioDevices *har_device, FILE *file, struct chunk_fmt fmt);
+void sample_write(PlatformAudioDevices *har_device, FILE *file, long data_pointer,int iter);
 int32_t StopAndCloseUsecase(PlatformAudioDevices *har_device);
 uint32_t buffer_size_bytes(PlatformAudioDevices *har_device);
 ssize_t try_play_bytes(PlatformAudioDevices *har_device,void *buffer,int bytes);

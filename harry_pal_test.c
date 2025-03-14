@@ -49,11 +49,21 @@ static int streamClose = 0;
 
 PlatformAudioDevices platform_device;
 
+typedef struct {
+    char AudioDeviceId[MAX_ADDRESS_LEN];
+    FILE *file;
+    float volume;
+    Spatialization value;
+    VehicleDataType vehicledatatype;
+    const char* vehicle_id;
+} PlaybackData;
+
 void stream_close(int sig)
 {
     /* allow the stream to be closed gracefully */
     signal(sig, SIG_IGN);
     streamClose = 1;
+    sleep (5);
 }
 
 Spatialization stringToEnum(const char *str) {
@@ -144,6 +154,69 @@ void disable_usecase()
     streamClose = 1;
 }
 
+void *playback_multithread(void *args) {
+    PlaybackData *data = (PlaybackData *)args;
+    char *buffer;
+    uint32_t size;
+    size_t num_read;
+    int32_t status;
+    int32_t written;
+    uint32_t bytes;
+
+    PlatformAudioDevices plat_device = get_audio_device(data->AudioDeviceId);
+    fprintf(stdout, "platform_device.AudioDeviceId = %d, channels = %d\n",
+            plat_device.device_id, plat_device.channels);
+     status = Open_Device(&plat_device);
+    if (status) {
+        printf(stdout, "Open_Device failed\n");
+        pthread_exit(NULL);
+    }
+    set_volume(&plat_device,data->volume);
+    set_spatialization(&plat_device, data->value);
+    // Check the device ID before calling set_custom_parameter
+    if (plat_device.device_id == 2 || plat_device.device_id == 3 || plat_device.device_id == 4) {
+     set_custom_parameter(data->vehicle_id, data->vehicledatatype);
+    }
+    else {
+        fprintf(stdout, "Skip set_custom_parameter call for safety\n");
+    }
+    fprintf(stdout, "Enabling write\n");
+    place_markers("kpi_value HarPalTest start playback");
+
+    size = buffer_size_bytes(&plat_device);
+    fprintf(stdout, "size = %d\n",size);
+    buffer = malloc(size);
+
+    if (!buffer) {
+        printf("Unable to allocate %d size\n", size);
+        pthread_exit(NULL);
+    }
+
+    memset(buffer, 0 , size);
+    bytes = size/4;
+    fprintf(stdout, "bytes = %d\n",bytes);
+
+    playback_rate(&plat_device);
+
+    do {
+        num_read = fread(buffer, 1, bytes, data->file);
+        if (num_read > 0) {
+            written = try_play_bytes(&plat_device,buffer,bytes);
+            if (written < 0) {
+                fprintf(stdout, "Write Failed\n");
+                break;
+            } else if (written != num_read) {
+                fprintf(stdout, "Partial write: expected %zu, wrote %d\n", num_read, written);
+            }
+        }
+    } while ((num_read > 0) &&(!streamClose));
+
+    free(buffer);
+    place_markers("kpi_value HarPalTest done playing");
+    fprintf(stdout, "Done Playing.\n");
+    StopAndCloseUsecase(&plat_device);
+    pthread_exit(NULL);
+}
 
 int main(int argc, char *argv[])
 {
@@ -271,6 +344,7 @@ int main(int argc, char *argv[])
                     "2.Press 'w' to start Warning Sound Usecase\n"
                     "3.Press 'r' to start ROAD_ADAS usecase\n"
                     "4.Press 't' to start Safety usecase\n"
+                    "5.Press 'm' to start multithread usecase\n"
                     "5.Press 'c' to close the usecase \n");
         while (!streamClose) {
            fgets(ch, 3, stdin);
@@ -338,6 +412,54 @@ int main(int argc, char *argv[])
                 sample_write(&platform_device,file,data_pointer,iter);
                 disable_usecase();
                 fclose(file);
+                break;
+
+            case 'm' :
+                pthread_t threads[MAX_DEVICES];
+                PlaybackData pbData[MAX_DEVICES];
+                VehicleDataType vehicledatatype1,vehicledatatype2,vehicledatatype3;
+
+                strlcpy(pbData[0].AudioDeviceId,"WELCOME_SEQUENCE",MAX_ADDRESS_LEN);
+                strlcpy(pbData[1].AudioDeviceId,"WARN",MAX_ADDRESS_LEN);
+                strlcpy(pbData[2].AudioDeviceId,"ROAD-ADAS",MAX_ADDRESS_LEN);
+                strlcpy(pbData[3].AudioDeviceId,"SWARN",MAX_ADDRESS_LEN);
+
+                pbData[0].volume = -3600;
+                pbData[1].volume = 0;
+                pbData[2].volume = -2400;
+                pbData[3].volume = -1200;
+
+                pbData[0].value = FrontCenter;
+                pbData[1].value = FrontLeft;
+                pbData[2].value = RearRight;
+                pbData[3].value = Center;
+
+                strlcpy(vehicledatatype1.key, "CYBER_MASTER_MUTE", MAX_ADDRESS_LEN);
+                vehicledatatype1.value.integer_data = 0;
+                strlcpy(vehicledatatype3.key, "PLAYBACK_STATUS", MAX_ADDRESS_LEN);
+                vehicledatatype3.value.integer_data = 1;
+                strlcpy(vehicledatatype2.key, "RESTORE_VOLUME", MAX_ADDRESS_LEN);
+                vehicledatatype2.value.string_data = "BUS00_WS,-3100; BUS01_no_ASIL,-3100;";
+
+                pbData[0].vehicledatatype = vehicledatatype1;
+                pbData[1].vehicledatatype = vehicledatatype2;
+                pbData[2].vehicledatatype = vehicledatatype3;
+                pbData[3].vehicledatatype = vehicledatatype1;
+
+                pbData[0].vehicle_id = "AUDIO_PARAM_ID_MUTE";
+                pbData[1].vehicle_id = "AUDIO_PARAM_ID_RES_VOL";
+                pbData[2].vehicle_id = "AUDIO_PARAM_ID_WS";
+                pbData[3].vehicle_id = "AUDIO_PARAM_ID_MUTE";
+
+                for(int i = 0; i < MAX_DEVICES; i++){
+                    pbData[i].file = file;
+                    pthread_create(&threads[i],NULL,playback_multithread,&pbData[i]);
+                }
+                for(int i = 0; i < MAX_DEVICES; i++){
+                    pthread_join(threads[i],NULL);
+                }
+                fclose(file);
+                streamClose = 1;
                 break;
 
             case 'c'  :

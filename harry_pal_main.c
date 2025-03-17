@@ -18,10 +18,14 @@
 #define PERIOD_SIZE 240
 #define PERIOD_COUNT 2
 #define DEFAULT_CARD_ID 0
+#define DEFAULT_BUF_SIZE 1024
+#define DEFAULT_BUF_COUNT 4
 
-static pal_stream_handle_t *pal_stream_handle;
-struct pal_buffer_config outBufCfg = {0, 0, 0};
 static int pal_init_status = 0;
+static pal_stream_element_t welcome_handler;
+static pal_stream_element_t no_asil_handler;
+static pal_stream_element_t road_adas_handler;
+static pal_stream_element_t asil_handler;
 
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 static PlatformAudioDevices platform_audio_devices_list[MAX_DEVICES];
@@ -74,6 +78,24 @@ typedef enum {
     // Add new OUT devices here, increment MAX and MIN below when you do so
     HAR_PAL_DEVICE_OUT_MAX = 8,
 } har_pal_out_device_id_t;
+
+pal_stream_element_t* get_stream_handler(int busid)
+{
+    HAR_PAL_VERBOSE(LOG_TAG, "%s: busid = %d",__func__, busid)
+    switch (busid)
+    {
+        case HAR_PAL_DEVICE_OUT_SPEAKER_WS:
+            return &welcome_handler;
+        case HAR_PAL_DEVICE_OUT_SPEAKER_V_WARN:
+            return &no_asil_handler;
+        case HAR_PAL_DEVICE_OUT_SPEAKER_ROAD_ADAS:
+            return &road_adas_handler;
+        case HAR_PAL_DEVICE_OUT_SPEAKER_S_WARN:
+            return &asil_handler;
+        default:
+            return NULL;
+    }
+}
 
 static int wait_for_snd_card_to_online()
 {
@@ -829,6 +851,7 @@ int32_t Open_Device(PlatformAudioDevices *har_device) {
     int32_t err = 0;
     uint32_t no_of_devices = 1;
     har_pal_out_device_id_t outDeviceId = 0;
+    pal_stream_element_t* stream_handler = NULL;
 
     pvt_data_t *pPvtData = calloc(1, sizeof(pvt_data_t));
     if (pPvtData == NULL) {
@@ -839,7 +862,7 @@ int32_t Open_Device(PlatformAudioDevices *har_device) {
 
     ret = pthread_mutex_lock(&lock);
     if (ret !=0) {
-      HAR_PAL_ERR(LOG_TAG,"HAR_PAL: %s pthread_mutex_lock failed", __func__);
+      HAR_PAL_ERR(LOG_TAG,"%s pthread_mutex_lock failed", __func__);
       goto exit;
     }
     if (pal_init_status == 0) {
@@ -946,36 +969,42 @@ int32_t Open_Device(PlatformAudioDevices *har_device) {
     pPvtData->devices.config.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_PCM;
     channel_map(pPvtData->devices.config.ch_info.ch_map, pPvtData->audioChannels);
 
-    HAR_PAL_VERBOSE(LOG_TAG, "Calling pal_stream_open");
-    err = pal_stream_open(&pPvtData->stream_attr, no_of_devices, &pPvtData->devices, 0, NULL,
-                            NULL, 0,  &pal_stream_handle);
+    HAR_PAL_DBG(LOG_TAG, "Calling pal_stream_open for device id =%d", har_device->device_id);
+    stream_handler = get_stream_handler(har_device->device_id);
+    if (stream_handler !=NULL) {
+       err = pal_stream_open(&pPvtData->stream_attr, no_of_devices, &pPvtData->devices, 0, NULL,
+                       NULL, 0,  &stream_handler->pal_stream_handle);
+    } else {
+        HAR_PAL_ERR(LOG_TAG, "Error: pal_stream_handle is NULL");
+        goto exit;
+    }
     if (err) {
         HAR_PAL_ERR(LOG_TAG, "Error:Failed to open RBVM  stream");
         goto exit;
     }
+
     HAR_PAL_DBG(LOG_TAG, "Stream Opened succesfully\n");
 
-    ret = pal_stream_get_buffer_size(pal_stream_handle,
+    ret = pal_stream_get_buffer_size(stream_handler->pal_stream_handle,
                                          &pPvtData->outBufCount, &pPvtData->outBufSize);
 
     if(ret) {
         HAR_PAL_ERR(LOG_TAG,"Pal get buffer size failed (%x).Setting Default", ret);
         /*Fall-back to default buffer count and size*/
-        pPvtData->outBufCount = 4;
-        pPvtData->outBufSize = 1024 * 4;
+        pPvtData->outBufCount = DEFAULT_BUF_COUNT;
+        pPvtData->outBufSize = DEFAULT_BUF_SIZE * DEFAULT_BUF_COUNT;
     }
 
     HAR_PAL_DBG(LOG_TAG, "outBufSize %d outBufCount %d\n",
                   pPvtData->outBufSize, pPvtData->outBufCount);
-    outBufCfg.buf_size = pPvtData->outBufSize;
-    outBufCfg.buf_count = pPvtData->outBufCount;
-    ret = pal_stream_set_buffer_size(pal_stream_handle, NULL, &outBufCfg);
+    stream_handler->outBufCfg.buf_size = pPvtData->outBufSize;
+    stream_handler->outBufCfg.buf_count = pPvtData->outBufCount;
+    ret = pal_stream_set_buffer_size(stream_handler->pal_stream_handle, NULL, &stream_handler->outBufCfg);
     if (ret) {
         HAR_PAL_ERR(LOG_TAG,"Pal Stream set buffer size Error  (%x)\n", ret);
     }
-
     HAR_PAL_DBG(LOG_TAG, "%s Calling pal_stream_start",__func__);
-    ret = pal_stream_start(pal_stream_handle);
+    ret = pal_stream_start(stream_handler->pal_stream_handle);
 
     if (ret == 0)
            stream_started = 1;
@@ -992,7 +1021,7 @@ exit:
     pPvtData = NULL;
     ret = pthread_mutex_unlock(&lock);
     if (ret !=0) {
-      HAR_PAL_ERR(LOG_TAG,"HAR_PAL: %s pthread_mutex_unlock failed", __func__);
+      HAR_PAL_ERR(LOG_TAG," %s pthread_mutex_unlock failed", __func__);
       return ret;
     }
     place_markers("kpi_value open_device exit");
@@ -1005,6 +1034,8 @@ exit:
  */
 uint32_t buffer_size_bytes(PlatformAudioDevices *har_device)
 {
+    int ret;
+    pal_stream_element_t* stream_handler = NULL;
     pvt_data_t *pPvtData = calloc(1, sizeof(pvt_data_t));
     if (pPvtData == NULL) {
         HAR_PAL_ERR(LOG_TAG,"Memory Allocation Failed\n");
@@ -1030,8 +1061,15 @@ uint32_t buffer_size_bytes(PlatformAudioDevices *har_device)
         }
     }
 
-    pPvtData->frames = ((outBufCfg.buf_size * 8) /
+    stream_handler = get_stream_handler(har_device->device_id);
+    if (stream_handler !=NULL) {
+      pPvtData->frames = ((stream_handler->outBufCfg.buf_size * 8) /
                             (pPvtData->audioChannels * pPvtData->audioBitDepth));
+    } else {
+        HAR_PAL_ERR(LOG_TAG,"%s. stream handler is null. Setting to Default",__func__);
+	pPvtData->frames = ((DEFAULT_BUF_SIZE * DEFAULT_BUF_COUNT * 8) /
+                            (pPvtData->audioChannels * pPvtData->audioBitDepth));
+    }
 
     buf_size = ((pPvtData->frames * pPvtData->audioChannels) *
                             (pPvtData->audioBitDepth/8));
@@ -1072,9 +1110,10 @@ ssize_t try_play_bytes(PlatformAudioDevices *har_device, void *buffer, int bytes
     ssize_t ret = 0;
     int err;
     struct pal_buffer palBuffer;
+    pal_stream_element_t* stream_handler = NULL;
     err = pthread_mutex_lock(&lock);
     if (err !=0) {
-      HAR_PAL_ERR(LOG_TAG,"HAR_PAL: %s pthread_mutex_lock failed", __func__);
+      HAR_PAL_ERR(LOG_TAG,"%s pthread_mutex_lock failed", __func__);
       return err;
     }
 
@@ -1083,10 +1122,20 @@ ssize_t try_play_bytes(PlatformAudioDevices *har_device, void *buffer, int bytes
     palBuffer.size = (size_t)bytes;
     palBuffer.offset = 0;
 
-    HAR_PAL_VERBOSE(LOG_TAG, "%s Buffer Size = %d", __func__, bytes);
-
-    ret = pal_stream_write(pal_stream_handle, &palBuffer);
-
+    HAR_PAL_VERBOSE(LOG_TAG, "%s Buffer Size = %d for device id=%d", __func__, bytes, har_device->device_id);
+    stream_handler = get_stream_handler(har_device->device_id);
+    if (stream_handler == NULL) {
+        ret = -1;
+        HAR_PAL_ERR(LOG_TAG,": %s pal_stream_handle is NULL", __func__);
+        err = pthread_mutex_unlock(&lock);
+        if (err !=0) {
+            HAR_PAL_ERR(LOG_TAG,"%s pthread_mutex_lock failed", __func__);
+            return err;
+          }
+        return ret;
+    } else {
+        ret = pal_stream_write(stream_handler->pal_stream_handle, &palBuffer);
+    }
     err = pthread_mutex_unlock(&lock);
     if (err !=0) {
       HAR_PAL_ERR(LOG_TAG,"HAR_PAL: %s pthread_mutex_unlock failed", __func__);
@@ -1104,8 +1153,9 @@ int32_t set_volume(PlatformAudioDevices *har_device, float volume)
 {
     int ret = 0;
     uint32_t channels = HAR_AUDIO_CHANNELS_2;
+    pal_stream_element_t* stream_handler = NULL;
 
-    HAR_PAL_DBG(LOG_TAG,"%s.Enter, volume = %f",__func__, volume);
+    HAR_PAL_DBG(LOG_TAG,"%s.Enter, volume = %f for device id=%d",__func__, volume, har_device->device_id);
     if (har_device) {
        if (har_device->channels >= HAR_AUDIO_CHANNELS_1 &&
                 har_device->channels <= HAR_AUDIO_CHANNELS_32) {
@@ -1116,7 +1166,7 @@ int32_t set_volume(PlatformAudioDevices *har_device, float volume)
 
     ret = pthread_mutex_lock(&lock);
     if (ret !=0) {
-      HAR_PAL_ERR(LOG_TAG,"HAR_PAL: %s pthread_mutex_lock failed", __func__);
+      HAR_PAL_ERR(LOG_TAG," %s pthread_mutex_lock failed", __func__);
       return ret;
     }
 
@@ -1144,14 +1194,22 @@ int32_t set_volume(PlatformAudioDevices *har_device, float volume)
                 volume_data->volume_pair[1].channel_mask = PAL_CHMAP_CHANNEL_FR;
                 volume_data->volume_pair[1].vol = volume;
             }
-
-            ret = pal_stream_set_volume(pal_stream_handle, volume_data);
-
+            stream_handler = get_stream_handler(har_device->device_id);
+            if (stream_handler == NULL) {
+                ret = -1;
+                HAR_PAL_ERR(LOG_TAG,"%s no stream for device %d", __func__, har_device->device_id);
+		free(volume_data);
+		volume_data = NULL;
+                pthread_mutex_unlock(&lock);
+                return ret;
+            } else {
+               ret = pal_stream_set_volume(stream_handler->pal_stream_handle, volume_data);
+            }
             if (ret) {
                 HAR_PAL_ERR(LOG_TAG,"Pal Stream volume Error (%x)", ret);
             }
-           free(volume_data);
-           volume_data = NULL;
+            free(volume_data);
+            volume_data = NULL;
        }
     }
     ret = pthread_mutex_unlock(&lock);
@@ -1171,32 +1229,43 @@ int32_t StopAndCloseUsecase(PlatformAudioDevices *har_device)
 {
     int32_t status = 0;
     int ret = 0;
-
+    int err;
+    pal_stream_element_t* stream_handler = NULL;
     ret = pthread_mutex_lock(&lock);
     if (ret !=0) {
       HAR_PAL_ERR(LOG_TAG,": %s pthread_mutex_lock failed", __func__);
       return ret;
     }
     place_markers("kpi_value close_device enter");
-    HAR_PAL_DBG(LOG_TAG,"%s.Enter",__func__);
-
-    if (pal_stream_handle) {
-        status = pal_stream_stop(pal_stream_handle);
-        if (status) {
-            HAR_PAL_ERR(LOG_TAG,"pal_stream_stop failed");
+    HAR_PAL_DBG(LOG_TAG,"%s.Enter for device id %d",__func__,har_device->device_id);
+    stream_handler = get_stream_handler(har_device->device_id);
+    if (stream_handler == NULL) {
+        ret = -1;
+        HAR_PAL_ERR(LOG_TAG," %s no stream for device %d", __func__, har_device->device_id);
+        err = pthread_mutex_unlock(&lock);
+        if (err !=0) {
+            HAR_PAL_ERR(LOG_TAG,"%s pthread_mutex_lock failed", __func__);
+            return err;
         }
-        status = pal_stream_close(pal_stream_handle);
+        return ret;
+    } else {
+        HAR_PAL_DBG(LOG_TAG, "%s:pal_stream_handle = %p",__func__,stream_handler->pal_stream_handle);
+        status = pal_stream_stop(stream_handler->pal_stream_handle);
         if (status) {
-            HAR_PAL_ERR(LOG_TAG,"pal_stream_close failed");
+           HAR_PAL_ERR(LOG_TAG,"pal_stream_stop failed");
+        }
+
+        status = pal_stream_close(stream_handler->pal_stream_handle);
+        if (status) {
+           HAR_PAL_ERR(LOG_TAG,"pal_stream_close failed");
         }
 
         stream_started = 0;
-
-      pal_stream_handle = NULL;
+        stream_handler->pal_stream_handle = NULL;
     }
     ret = pthread_mutex_unlock(&lock);
     if (ret !=0) {
-      HAR_PAL_ERR(LOG_TAG,"HAR_PAL: %s pthread_mutex_unlock failed", __func__);
+      HAR_PAL_ERR(LOG_TAG,"%s pthread_mutex_unlock failed", __func__);
       return ret;
     }
 

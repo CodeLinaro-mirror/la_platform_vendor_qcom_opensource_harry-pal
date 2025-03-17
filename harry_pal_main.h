@@ -75,6 +75,11 @@ typedef enum snd_card_status_t {
     SND_CARD_STATUS_NONE,
 } snd_card_status_t;
 
+typedef struct {
+    pal_stream_handle_t *pal_stream_handle;
+    struct pal_buffer_config outBufCfg;
+} pal_stream_element_t;
+
 typedef enum {
     /// 8000
     HAR_AUDIO_RATE_8KHZ      = 8000,

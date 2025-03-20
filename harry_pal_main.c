@@ -14,13 +14,6 @@
 #include <sys/resource.h>
 #include <cutils/properties.h>
 
-#define PCM_DEVICE_NAME_DEFAULT "default"
-#define PERIOD_SIZE 240
-#define PERIOD_COUNT 2
-#define DEFAULT_CARD_ID 0
-#define DEFAULT_BUF_SIZE 1024
-#define DEFAULT_BUF_COUNT 4
-
 static int pal_init_status = 0;
 static pal_stream_element_t welcome_handler;
 static pal_stream_element_t no_asil_handler;
@@ -840,6 +833,29 @@ PlatformAudioDevices load_default_config(const char* device) {
      return audio_device;
 }
 
+void get_buffer_size(pal_stream_element_t* handler, struct pal_stream_attributes *sattr) {
+
+    int channels = sattr->out_media_config.ch_info.channels;
+    int bytes_per_sample = audio_bytes_per_sample((audio_format_t)sattr->format);
+    if (handler == &welcome_handler) {
+        handler->outBufCfg.buf_count = PERIOD_COUNT;
+        handler->outBufCfg.buf_size = DEEP_BUFFER_PERIOD_SIZE * bytes_per_sample * channels;
+    } else if (handler == &no_asil_handler) {
+        handler->outBufCfg.buf_count = PERIOD_COUNT;
+        handler->outBufCfg.buf_size = LOW_LATENCY_PERIOD_SIZE * bytes_per_sample * channels;
+    } else if (handler == &road_adas_handler) {
+        handler->outBufCfg.buf_count = PERIOD_COUNT;
+        handler->outBufCfg.buf_size = LOW_LATENCY_PERIOD_SIZE * bytes_per_sample * channels;
+    } else if (handler == &asil_handler) {
+        handler->outBufCfg.buf_count = PERIOD_COUNT;
+        handler->outBufCfg.buf_size = LOW_LATENCY_PERIOD_SIZE * bytes_per_sample * channels;
+    } else {
+        HAR_PAL_ERR(LOG_TAG,"%s: Invalid handler. Setting default buffer config",__func__);
+        handler->outBufCfg.buf_count = DEFAULT_BUF_COUNT;
+        handler->outBufCfg.buf_size = DEFAULT_BUF_SIZE;
+    }
+}
+
 /*Opens the given Audio Device, ensuring it is ready to play sound.
  *This function further calls pal_init(), pal_stream_open(),
  *pal_stream_get_buffer_size() and pal_stream_get_buffer_size().
@@ -885,10 +901,6 @@ int32_t Open_Device(PlatformAudioDevices *har_device) {
     if(pPvtData->pDeviceName == NULL)
         pPvtData->pDeviceName = PCM_DEVICE_NAME_DEFAULT;
     pPvtData->cardId = DEFAULT_CARD_ID;
-    pPvtData->alsaPeriodCount = PERIOD_COUNT;
-    pPvtData->alsaPeriodSize = PERIOD_SIZE;
-    pPvtData->alsaStartThreshold = 0;
-    pPvtData->alsaStopThreshold = 0;
     pPvtData->audioRate = HAR_AUDIO_RATE_48KHZ;
     pPvtData->audioBitDepth = HAR_AUDIO_BIT_DEPTH_16BIT;
     pPvtData->audioChannels = HAR_AUDIO_CHANNELS_2;
@@ -985,20 +997,11 @@ int32_t Open_Device(PlatformAudioDevices *har_device) {
 
     HAR_PAL_DBG(LOG_TAG, "Stream Opened succesfully\n");
 
-    ret = pal_stream_get_buffer_size(stream_handler->pal_stream_handle,
-                                         &pPvtData->outBufCount, &pPvtData->outBufSize);
-
-    if(ret) {
-        HAR_PAL_ERR(LOG_TAG,"Pal get buffer size failed (%x).Setting Default", ret);
-        /*Fall-back to default buffer count and size*/
-        pPvtData->outBufCount = DEFAULT_BUF_COUNT;
-        pPvtData->outBufSize = DEFAULT_BUF_SIZE * DEFAULT_BUF_COUNT;
-    }
+    get_buffer_size(stream_handler, &(pPvtData->stream_attr));
 
     HAR_PAL_DBG(LOG_TAG, "outBufSize %d outBufCount %d\n",
-                  pPvtData->outBufSize, pPvtData->outBufCount);
-    stream_handler->outBufCfg.buf_size = pPvtData->outBufSize;
-    stream_handler->outBufCfg.buf_count = pPvtData->outBufCount;
+                  stream_handler->outBufCfg.buf_size , stream_handler->outBufCfg.buf_count);
+
     ret = pal_stream_set_buffer_size(stream_handler->pal_stream_handle, NULL, &stream_handler->outBufCfg);
     if (ret) {
         HAR_PAL_ERR(LOG_TAG,"Pal Stream set buffer size Error  (%x)\n", ret);

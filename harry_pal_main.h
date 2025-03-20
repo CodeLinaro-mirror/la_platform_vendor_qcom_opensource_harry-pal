@@ -16,11 +16,20 @@
 #include <expat.h>
 #include <PalApi.h>
 #include <PalDefs.h>
+#include <system/audio.h>
 
 #define ID_RIFF 0x46464952
 #define ID_WAVE 0x45564157
 #define ID_FMT  0x20746d66
 #define ID_DATA 0x61746164
+
+#define PCM_DEVICE_NAME_DEFAULT "default"
+#define DEEP_BUFFER_PERIOD_SIZE 1920
+#define LOW_LATENCY_PERIOD_SIZE 240
+#define PERIOD_COUNT 2
+#define DEFAULT_CARD_ID 0
+#define DEFAULT_BUF_SIZE 1024
+#define DEFAULT_BUF_COUNT 4
 
 #define AGM_INIT_SLEEP_WAIT 10 /* 10 ms */
 #define SNDCARD_PATH "/sys/kernel/snd_card/card_state"

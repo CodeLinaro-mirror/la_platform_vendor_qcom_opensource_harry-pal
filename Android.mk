@@ -25,6 +25,9 @@ LOCAL_CFLAGS        := -D_ANDROID_
 LOCAL_CFLAGS        += -Wall -Werror -Wno-unused-function -Wno-unused-variable
 LOCAL_CFLAGS        += -DHAR_PAL_DEVICE=\"/vendor/etc/device_manager.xml\"
 
+LOCAL_HEADER_LIBRARIES := \
+     libarpal_headers
+
 LOCAL_SHARED_LIBRARIES := \
                           libaudioroute \
                           libaudioutils \
@@ -35,7 +38,7 @@ LOCAL_SHARED_LIBRARIES := \
                           libar-pal
 
 LOCAL_C_INCLUDES     := $(LOCAL_PATH)/
-LOCAL_C_INCLUDES     := $(TOP)/vendor/qcom/opensource/pal
+LOCAL_C_INCLUDES     := $(TOP)/vendor/qcom/opensource/pal/inc
 LOCAL_C_INCLUDES     += $(TOP)/system/media/audio/include
 LOCAL_C_INCLUDES     += $(TOP)/system/media/audio_route/include
 LOCAL_C_INCLUDES     += external/expat/lib \
@@ -46,7 +49,7 @@ include $(BUILD_SHARED_LIBRARY)
 include $(CLEAR_VARS)
 LOCAL_USE_VNDK := true
 
-LOCAL_C_INCLUDES     := $(TOP)/vendor/qcom/opensource/pal
+LOCAL_C_INCLUDES     := $(TOP)/vendor/qcom/opensource/pal/inc
 LOCAL_C_INCLUDES     += $(TOP)/system/media/audio/include
 LOCAL_C_INCLUDES     += $(TOP)/system/media/audio_route/include
 LOCAL_C_INCLUDES     += $(TOP)/external/expat/lib/expat.h

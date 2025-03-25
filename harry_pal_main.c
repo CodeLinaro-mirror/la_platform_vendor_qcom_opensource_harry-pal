@@ -882,6 +882,10 @@ int32_t Open_Device(PlatformAudioDevices *har_device) {
       goto exit;
     }
     if (pal_init_status == 0) {
+        ret = set_agm_status(0);
+        if(ret) {
+            HAR_PAL_ERR(LOG_TAG,"set_agm_status got failed ret = %d", ret);
+        }
         ret = wait_for_snd_card_to_online();
           if (ret) {
              HAR_PAL_ERR(LOG_TAG,"Not found any SND card online\n");
@@ -1137,8 +1141,14 @@ ssize_t try_play_bytes(PlatformAudioDevices *har_device, void *buffer, int bytes
           }
         return ret;
     } else {
+        if(get_agm_status()) {
+            HAR_PAL_ERR(LOG_TAG,"%s: Agm is crashed.",__func__);
+            ret = -EINVAL;
+            goto exit;
+        }
         ret = pal_stream_write(stream_handler->pal_stream_handle, &palBuffer);
     }
+exit:
     err = pthread_mutex_unlock(&lock);
     if (err !=0) {
       HAR_PAL_ERR(LOG_TAG,"HAR_PAL: %s pthread_mutex_unlock failed", __func__);

@@ -31,6 +31,13 @@
 #define DEFAULT_BUF_SIZE 1024
 #define DEFAULT_BUF_COUNT 4
 
+#define NUM_REQUESTED_ZONES 9
+#define NUM_ZONES 4
+
+#define FL_BIT 3
+#define FR_BIT 2
+#define RL_BIT 1
+
 #define AGM_INIT_SLEEP_WAIT 10 /* 10 ms */
 #define SNDCARD_PATH "/sys/kernel/snd_card/card_state"
 #define MAX_RETRY 100 /*Device will try these many times before return an error*/
@@ -220,7 +227,8 @@ typedef enum {
     RearLeft = 5,
     RearRight = 6,
     Right = 7,
-    Left = 8
+    Left = 8,
+    None = -1
 } Spatialization;
 
 //Structure to handle  payload creation for Volume and Spatialization
@@ -259,6 +267,11 @@ const char bus_address[BUS_RESERVED][MAX_ADDRESS_LEN]={
 typedef struct {
     int32_t value;
 } Type2_param;
+
+typedef struct {
+    char zone[50];
+    int value;
+} SpkrGrpAvail;
 
 typedef struct {
     char bus_addr[100];      //Bus Address for which volume needs to be restored

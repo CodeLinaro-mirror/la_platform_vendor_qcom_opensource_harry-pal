@@ -90,6 +90,46 @@ pal_stream_element_t* get_stream_handler(int busid)
     }
 }
 
+const Spatialization requested_zone_index[] = {
+    FrontLeft, FrontRight, FrontCenter, RearLeft,
+    RearRight, Rear, Left, Right, Center
+};
+
+const Spatialization MAPPING_TABLE[16][NUM_REQUESTED_ZONES] = {
+    //0000
+    {None, None, None, None, None, None, None, None, None},
+    //0001 (RR)
+    {RearRight, RearRight, Rear, RearRight, RearRight, Rear, Right, Right, Center},
+    //0010 (RL)
+    {RearLeft, RearLeft, Rear, RearLeft, RearLeft, Rear, Left, Left, Center},
+    //0011 (RL + RR)
+    {RearLeft, RearRight, Rear, RearLeft, RearRight, Rear, Left, Right, Center},
+    //0100 (FR)
+    {FrontRight, FrontRight, FrontCenter, FrontRight, FrontRight, FrontCenter, Right, Right, Center},
+    //0101 (FR + RR)
+    {FrontRight, FrontRight, FrontCenter, RearRight, RearRight, Rear, Right, Right, Center},
+    //0110 (FR + RL)
+    {FrontRight, FrontRight, FrontCenter, RearLeft, RearLeft, Rear, Left, Right, Center},
+    //0111 (FR + RL + RR)
+    {FrontRight, FrontRight, FrontCenter, RearLeft, RearRight, Rear, Left, Right, Center},
+    //1000 (FL)
+    {FrontLeft, FrontLeft, FrontCenter, FrontLeft, FrontLeft, FrontCenter, Left, Left, Center},
+    //1001 (FL + RR)
+    {FrontLeft, FrontLeft, FrontCenter, RearRight, RearRight, Rear, Left, Right, Center},
+    //1010 (FL + RL)
+    {FrontLeft, FrontLeft, FrontCenter, RearLeft, RearLeft, Rear, Left, Left, Center},
+    //1011 (FL + RL + RR)
+    {FrontLeft, FrontLeft, FrontCenter, RearLeft, RearRight, Rear, Left, Right, Center},
+    //1100 (FL + FR)
+    {FrontLeft, FrontRight, FrontCenter, FrontLeft, FrontRight, FrontCenter, Left, Right, Center},
+    //1101 (FL + FR + RR)
+    {FrontLeft, FrontRight, FrontCenter, RearRight, RearRight, Rear, Left, Right, Center},
+    //1110 (FL + FR + RL)
+    {FrontLeft, FrontRight, FrontCenter, RearLeft, RearLeft, Rear, Left, Right, Center},
+    //1111 (FL + FR + RL + RR)
+    {FrontLeft, FrontRight, FrontCenter, RearLeft, RearRight, Rear, Left, Right, Center}
+};
+
 static int wait_for_snd_card_to_online()
 {
     int ret = 0;
@@ -144,6 +184,114 @@ static int32_t auto_audio_ar_ext_wait_agm(void)
         }
     }
     return 0;
+}
+
+//Function to convert integer to Spatialization enum
+Spatialization int_to_enum(int value) {
+    HAR_PAL_DBG(LOG_TAG, "%s: value = %d",__func__,value);
+    switch (value) {
+        case 0: return FrontCenter;
+        case 1: return FrontLeft;
+        case 2: return FrontRight;
+        case 3: return Center;
+        case 4: return Rear;
+        case 5: return RearLeft;
+        case 6: return RearRight;
+        case 7: return Right;
+        case 8: return Left;
+        default: return FrontCenter;
+    }
+}
+
+//Function to convert OutcomeZone enum to string
+const char *outcome_zone_to_string(Spatialization zone) {
+    const char *outcome_zone_string[NUM_REQUESTED_ZONES] = {
+            "FrontCenter", "FrontLeft", "FrontRight", "Center",
+            "Rear", "RearLeft", "RearRight", "Right", "Left"
+     };
+    if (zone == None)
+      return "None";
+
+    return outcome_zone_string[zone];
+}
+
+//Function to get column index based on spatialization enum value
+int get_column_index(Spatialization requested_zone) {
+
+    for(int i = 0; i < NUM_REQUESTED_ZONES; i++) {
+       if (requested_zone_index[i] == requested_zone) {
+          return i;
+       }
+    }
+    HAR_PAL_ERR(LOG_TAG,":s, Invalid column index",__func__);
+    return -1;
+}
+
+//Function to get outcome based on speaker grp and requested zone
+Spatialization get_outcome(SpkrGrpAvail *zones, int count, Spatialization requested_zone) {
+    int bitmask =0;
+    int ret =0;
+    ret = pthread_mutex_lock(&lock);
+    if (ret !=0) {
+      HAR_PAL_ERR(LOG_TAG,": %s pthread_mutex_lock failed", __func__);
+      return ret;
+    }
+
+    for (int i = 0; i < count; i++) {
+        if (strcmp(zones[i].zone, "FL") ==0)
+           bitmask |= (zones[i].value << FL_BIT);
+        else if (strcmp(zones[i].zone, "FR") ==0)
+           bitmask |= (zones[i].value << FR_BIT);
+        else if (strcmp(zones[i].zone, "RL") ==0)
+           bitmask |= (zones[i].value << RL_BIT);
+        else if (strcmp(zones[i].zone, "RR") ==0)
+           bitmask |= (zones[i].value);
+    }
+
+    int column_index = get_column_index(requested_zone);
+    ret = pthread_mutex_unlock(&lock);
+    if (ret !=0) {
+      HAR_PAL_ERR(LOG_TAG,": %s pthread_mutex_unlock failed", __func__);
+      return ret;
+    }
+
+    HAR_PAL_DBG(LOG_TAG,"bitmask = %d, requested_zone = %d, column_index = %d",bitmask,requested_zone, column_index);
+    return MAPPING_TABLE[bitmask][column_index];
+}
+
+//Function to parse input string and return an array of SpkrGrpAvail
+SpkrGrpAvail* parse_speaker_group_availability(const char *input, int *num_zones) {
+    *num_zones = 0;
+    char *tokptr;
+    char *buffer = malloc(strlen(input) + 1);
+    if (!buffer){
+        HAR_PAL_ERR(LOG_TAG,"Unable to allocate memory");
+        return NULL;
+    }
+
+     //alocate list for total zones
+    SpkrGrpAvail *spkrgrpList = malloc(NUM_ZONES*sizeof(SpkrGrpAvail));
+    if (!spkrgrpList){
+        HAR_PAL_ERR(LOG_TAG,"Unable to allocate memory");
+        free(buffer);
+        return NULL;
+    }
+
+    strlcpy(buffer,input,strlen(input)+1);
+    HAR_PAL_DBG(LOG_TAG,"parse_volume_string strlcpy %s\n",buffer);
+    char *segment = strtok_r(buffer,";",&tokptr);
+    while (segment != NULL) {
+         if(sscanf(segment, " %[^,],%d",spkrgrpList[*num_zones].zone,&spkrgrpList[*num_zones].value) == 2){
+            HAR_PAL_DBG(LOG_TAG,"name %s , data = %d",
+                       spkrgrpList[*num_zones].zone,spkrgrpList[*num_zones].value);
+            (*num_zones)++;
+        } else {
+            HAR_PAL_ERR(LOG_TAG,"Invalid segment: %s\n",segment);
+        }
+        segment = strtok_r(NULL,";",&tokptr);
+    }
+    free(buffer);
+    return spkrgrpList;
 }
 
 VolumeData* parse_volume_string(const char *input, int *count){
@@ -506,6 +654,137 @@ cleanup:
 
 }
 
+//Handler function to handle Spkr Group Availability
+uint32_t handleSpkrGrpAvailability(VehicleDataType vehicledatatype) {
+
+    int status = 0;
+    int ret =0;
+    float vol_mb = 0.0;
+    const char* bus_address = NULL;
+    const char *key = NULL;
+    uint8_t* payloadInfo = NULL;
+    pal_param_payload* pal_payload = NULL;
+    effect_pal_payload_t* effect_payload = NULL;
+    pal_effect_custom_payload_t* customPayload = NULL;
+    pal_awx_data_t* retrievedData = NULL;
+    pal_awx_bus_type_t bus_index = BUS_RESERVED;
+    pal_device_id_t pal_device = PAL_DEVICE_OUT_SPEAKER;
+    int count;
+    PlatformAudioDevices audio_device;
+
+    key = vehicledatatype.key;
+
+    HAR_PAL_DBG(LOG_TAG, "%s:key = %s string= %s",__func__,key,vehicledatatype.value.string_data);
+
+    ret = pthread_mutex_lock(&lock);
+    if (ret !=0) {
+       HAR_PAL_ERR(LOG_TAG,": %s pthread_mutex_lock failed", __func__);
+       return ret;
+    }
+
+     uint32_t payload_size = sizeof(pal_param_payload) + sizeof(effect_pal_payload_t) +
+                                    sizeof(pal_effect_custom_payload_t) + sizeof(pal_awx_data_t);
+
+     size_t padBytes = PADDING_8BYTE_ALIGN(payload_size);
+
+     if (strcmp(vehicledatatype.key,"SPEAKER_GROUP_AVAILABILITY") == 0) {
+        //allocate memory for payload
+        payloadInfo = (uint8_t*) calloc(1, payload_size + padBytes);
+        if (!payloadInfo) {
+           HAR_PAL_ERR(LOG_TAG,":%s Memory allocation failure",__func__);
+           ret = pthread_mutex_unlock(&lock);
+           if (ret !=0) {
+              HAR_PAL_ERR(LOG_TAG,":%s pthread_mutex_unlock failed", __func__);
+              return ret;
+           }
+           return -ENOMEM;
+        }
+
+        //Creating payload
+        pal_payload = (pal_param_payload*) payloadInfo;
+        effect_payload = (effect_pal_payload_t*) (payloadInfo + sizeof(pal_param_payload));
+        customPayload = (pal_effect_custom_payload_t*) (payloadInfo +
+                  sizeof(pal_param_payload) + sizeof(effect_pal_payload_t));
+
+        pal_payload->payload_size = sizeof(effect_pal_payload_t) +
+                          sizeof(pal_effect_custom_payload_t) + sizeof(pal_awx_data_t);
+
+        effect_payload->isTKV = PARAM_NONTKV;
+
+        effect_payload->tag = TAG_MODULE_CUSTOM_AWX;
+        effect_payload->payloadSize = sizeof(pal_effect_custom_payload_t) + sizeof(pal_awx_data_t);
+        customPayload->paramId = AWX_SPATIALIZATION;
+
+        status = pal_gef_rw_param(PAL_PARAM_ID_UIEFFECT, (void *) pal_payload, payload_size,
+                            pal_device, PAL_STREAM_PLAYBACK_BUS, GEF_PARAM_READ, NULL);
+
+        if (status != 0) {
+           HAR_PAL_ERR(LOG_TAG,"%s: get param failed with error: %d\n",__func__, status);
+           goto cleanup;
+        }
+
+        pal_awx_data_t* retrievedData = (pal_awx_data_t*)customPayload->data;
+        int32_t value_VWarn = retrievedData->val[BUS_VWARN_AWX];
+        int32_t value_RoadADAS = retrievedData->val[BUS_VROADADAS_AWX];
+
+        Spatialization requested_zone_VWARN = int_to_enum(value_VWarn);
+	HAR_PAL_INFO(LOG_TAG, "Requested Zone for VWARN : %s\n", 
+                        outcome_zone_to_string(requested_zone_VWARN));
+	Spatialization requested_zone_RoadADAS = int_to_enum(value_RoadADAS);
+	HAR_PAL_INFO(LOG_TAG, "Requested Zone for ROAD-ADAS : %s\n", 
+                        outcome_zone_to_string(requested_zone_RoadADAS));
+
+        SpkrGrpAvail *zones = parse_speaker_group_availability(vehicledatatype.value.string_data,&count);
+
+        ret = pthread_mutex_unlock(&lock);
+        if (ret !=0) {
+          HAR_PAL_ERR(LOG_TAG,": %s pthread_mutex_unlock failed", __func__);
+          return ret;
+        }
+
+        if (zones) {
+           Spatialization outcome_VWARN = get_outcome(zones, count, requested_zone_VWARN);
+	   HAR_PAL_INFO(LOG_TAG, "Outcome Zone for VWARN :%d, %s\n",
+                         outcome_VWARN, outcome_zone_to_string(outcome_VWARN));
+	   audio_device = load_default_config("WARN");
+	   status = set_spatialization(&audio_device, outcome_VWARN);
+
+	   Spatialization outcome_RoadADAS = get_outcome(zones, count, requested_zone_RoadADAS);
+	   HAR_PAL_INFO(LOG_TAG, "Outcome Zone for ROAD-ADAS:%d, %s\n",
+                         outcome_RoadADAS, outcome_zone_to_string(outcome_RoadADAS));
+           audio_device = load_default_config("ROAD-ADAS");
+           status = set_spatialization(&audio_device, outcome_RoadADAS);
+        } else {
+           HAR_PAL_ERR(LOG_TAG,"list empty");
+           status = -1;
+           goto cleanup;
+        }
+
+     } else {
+         HAR_PAL_ERR(LOG_TAG,"Unknown VehicleDataType");
+         status = -1;
+         goto cleanup;
+     }
+
+cleanup:
+    if (payloadInfo) {
+        free(payloadInfo);
+        payloadInfo = NULL;
+    }
+    pal_payload = NULL;
+    effect_payload = NULL;
+    customPayload = NULL;
+
+    if (status != 0) {
+        HAR_PAL_ERR(LOG_TAG,"Spkr Group Routing failed with error: %d\n", status);
+    } else {
+        HAR_PAL_INFO(LOG_TAG,"Spkr Group Routing Successful");
+    }
+
+    return status;
+
+}
+
 //Function to register ID-handler mappings
 void registerIdHandler(const char* id, void (*handler)(VehicleDataType)) {
 
@@ -715,6 +994,7 @@ PlatformAudioDevices get_audio_device(const char* device_id) {
     registerIdHandler("AUDIO_PARAM_ID_MUTE", handleMasterMute);
     registerIdHandler("AUDIO_PARAM_ID_WS", handleWelcomeSequence);
     registerIdHandler("AUDIO_PARAM_ID_RES_VOL", handleRestoreVolume);
+    registerIdHandler("AUDIO_PARAM_ID_SPKR", handleSpkrGrpAvailability);
 
     place_markers("kpi_value get_audio_device enter");
     HAR_PAL_DBG(LOG_TAG,"AudioDeviceId = %s",device_id);
@@ -819,7 +1099,7 @@ PlatformAudioDevices load_default_config(const char* device) {
         audio_device.device_id = 3;
      } else if (strcmp("ROAD-ADAS",device) == 0) {
         HAR_PAL_INFO(LOG_TAG,"get_audio_device id= ROAD-ADAS");
-        strlcpy(audio_device.bus_address, "BUS02_Road_Adas", MAX_ADDRESS_LEN);
+        strlcpy(audio_device.bus_address, "BUS02_Road_ADAS", MAX_ADDRESS_LEN);
         audio_device.device_id = 4;
      } else if (strcmp("SWARN",device) == 0) {
         HAR_PAL_INFO(LOG_TAG,"get_audio_device id= SWARN");
@@ -1376,7 +1656,7 @@ uint32_t set_spatialization(PlatformAudioDevices *har_device, Spatialization val
     }
 
     status = pal_gef_rw_param(PAL_PARAM_ID_UIEFFECT, (void *) pal_payload, payload_size,
-                              pal_device, PAL_STREAM_PLAYBACK_BUS, GEF_PARAM_WRITE, bus_addr);
+                              pal_device, PAL_STREAM_PLAYBACK_BUS, GEF_PARAM_WRITE, NULL);
 cleanup:
     if (payloadInfo) {
         free(payloadInfo);

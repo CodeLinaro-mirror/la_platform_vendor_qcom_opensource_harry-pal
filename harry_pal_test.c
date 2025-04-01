@@ -63,7 +63,6 @@ void stream_close(int sig)
     /* allow the stream to be closed gracefully */
     signal(sig, SIG_IGN);
     streamClose = 1;
-    sleep (5);
 }
 
 Spatialization stringToEnum(const char *str) {
@@ -112,7 +111,7 @@ void sample_write(PlatformAudioDevices *platform_device,FILE *file, long data_po
     }
 
     memset(buffer, 0 , size);
-    bytes = size/4;
+    bytes = size/2;
     fprintf(stdout, "bytes = %d\n",bytes);
 
     playback_rate(platform_device);
@@ -193,7 +192,7 @@ void *playback_multithread(void *args) {
     }
 
     memset(buffer, 0 , size);
-    bytes = size/4;
+    bytes = size/2;
     fprintf(stdout, "bytes = %d\n",bytes);
 
     playback_rate(&plat_device);
@@ -228,12 +227,13 @@ int main(int argc, char *argv[])
     int more_chunks = 1;
     long data_pointer = 0;
     int iter = 1;
-    char ch[3];
+    char *usecase = "s";
     char *id = "AUDIO_PARAM_ID_MUTE";
     char *key = "CYBER_MASTER_MUTE";
     int value = 0;
     float rvol = 0.0;
     const char *bus_address = NULL;
+    const char *spkr_grp_avail = NULL;
     int status = 0;
     float vol = -3100.0;
     Spatialization spt = Center;
@@ -286,6 +286,10 @@ int main(int argc, char *argv[])
             argv++;
             if (*argv)
                 vol = atof(*argv);
+        }else if (strcmp(*argv, "-usecase") == 0) {
+            argv++;
+            if (*argv)
+                usecase = *argv;
         } else if (strcmp(*argv, "-spt") == 0) {
             argv++;
             if (*argv)
@@ -310,6 +314,10 @@ int main(int argc, char *argv[])
             argv++;
             if (*argv)
                bus_address = *argv;
+        } else if (strcmp(*argv, "-svalue") == 0) {
+            argv++;
+            if (*argv)
+               spkr_grp_avail = *argv;
         }
           if (*argv)
             argv++;
@@ -335,20 +343,24 @@ int main(int argc, char *argv[])
             vehicledatatype.value.string_data = "BUS00_WS,-3100; BUS01_no_ASIL,-3100;";
             fprintf(stdout, "Error: Bus address not provided using default\n");
          }
+    } else if (strcmp(key, "SPEAKER_GROUP_AVAILABILITY") == 0) {
+         if (spkr_grp_avail) {
+            vehicledatatype.value.string_data = malloc(strlen(spkr_grp_avail)+1);
+            if (!vehicledatatype.value.string_data) {
+               fprintf(stdout, "Unable to initialise memory\n");
+            }
+            strlcpy(vehicledatatype.value.string_data, spkr_grp_avail, strlen(spkr_grp_avail)+1);
+         } else {
+            vehicledatatype.value.string_data = "FL,0; FR,0; RL,0; RR,1";
+            fprintf(stdout, "Error: spkr grp not provided using default\n");
+         }
     } else {
        fprintf(stdout, "Error:Unsupported Key\n");
     }
 
     if (argc > 1) {
-        fprintf(stdout, "1.Press 's' to start WelcomeSound Usecase\n"
-                    "2.Press 'w' to start Warning Sound Usecase\n"
-                    "3.Press 'r' to start ROAD_ADAS usecase\n"
-                    "4.Press 't' to start Safety usecase\n"
-                    "5.Press 'm' to start multithread usecase\n"
-                    "5.Press 'c' to close the usecase \n");
         while (!streamClose) {
-           fgets(ch, 3, stdin);
-           switch (ch[0]) {
+           switch (*usecase) {
             case 's' :
                 platform_device = get_audio_device("WELCOME_SEQUENCE");
                 fprintf(stdout, "platform_device.AudioDeviceId = %d, channels = %d\n", platform_device.device_id, platform_device.channels);

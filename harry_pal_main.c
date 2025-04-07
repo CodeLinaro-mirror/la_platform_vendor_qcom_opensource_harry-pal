@@ -227,15 +227,10 @@ int get_column_index(Spatialization requested_zone) {
     return -1;
 }
 
-//Function to get outcome based on speaker grp and requested zone
-Spatialization get_outcome(SpkrGrpAvail *zones, int count, Spatialization requested_zone) {
+//Function to get Bitmask based on SpkrGrpAvail
+int get_bit_mask(SpkrGrpAvail *zones, int count){
     int bitmask =0;
     int ret =0;
-    ret = pthread_mutex_lock(&lock);
-    if (ret !=0) {
-      HAR_PAL_ERR(LOG_TAG,": %s pthread_mutex_lock failed", __func__);
-      return ret;
-    }
 
     for (int i = 0; i < count; i++) {
         if (strcmp(zones[i].zone, "FL") ==0)
@@ -247,16 +242,7 @@ Spatialization get_outcome(SpkrGrpAvail *zones, int count, Spatialization reques
         else if (strcmp(zones[i].zone, "RR") ==0)
            bitmask |= (zones[i].value);
     }
-
-    int column_index = get_column_index(requested_zone);
-    ret = pthread_mutex_unlock(&lock);
-    if (ret !=0) {
-      HAR_PAL_ERR(LOG_TAG,": %s pthread_mutex_unlock failed", __func__);
-      return ret;
-    }
-
-    HAR_PAL_DBG(LOG_TAG,"bitmask = %d, requested_zone = %d, column_index = %d",bitmask,requested_zone, column_index);
-    return MAPPING_TABLE[bitmask][column_index];
+    return bitmask;
 }
 
 //Function to parse input string and return an array of SpkrGrpAvail
@@ -654,11 +640,133 @@ cleanup:
 
 }
 
+uint32_t handleSpkrVar(VehicleDataType vehicledatatype) {
+    int ret =0;
+    int num_kvp = 1;
+    pal_device_id_t pal_device = PAL_DEVICE_OUT_SPEAKER;
+
+    ret = pthread_mutex_lock(&lock);
+    if (ret !=0) {
+       HAR_PAL_ERR(LOG_TAG,": %s pthread_mutex_lock failed", __func__);
+       return ret;
+    }
+
+    uint32_t payload_size = sizeof(pal_param_payload) + sizeof(effect_pal_payload_t) +
+                           sizeof(pal_key_vector_t) + num_kvp * sizeof(pal_key_value_pair_t);
+    size_t padBytes = PADDING_8BYTE_ALIGN(payload_size);
+
+    uint8_t *payloadPtr = (uint8_t*) calloc(num_kvp, payload_size + padBytes);
+    if (!payloadPtr) {
+       HAR_PAL_ERR(LOG_TAG,":%s Memory allocation failure",__func__);
+       ret = pthread_mutex_unlock(&lock);
+       if (ret !=0) {
+            HAR_PAL_ERR(LOG_TAG,":%s pthread_mutex_unlock failed %d", __func__,ret);
+            return ret;
+       }
+       return -ENOMEM;
+    }
+
+    pal_param_payload *palPayload = (pal_param_payload *)payloadPtr;
+    palPayload->payload_size = sizeof(effect_pal_payload_t) + sizeof(pal_key_vector_t) +
+                               num_kvp * sizeof(pal_key_value_pair_t);
+
+    effect_pal_payload_t *effectPalPayload =
+            (effect_pal_payload_t *)(payloadPtr + sizeof(pal_param_payload));
+    effectPalPayload->isTKV = PARAM_TKV;
+    effectPalPayload->tag = TAG_MODULE_SPKR_VAR;
+    effectPalPayload->payloadSize =
+            sizeof(pal_key_vector_t) + num_kvp * sizeof(pal_key_value_pair_t);
+
+    pal_key_vector_t *palKeyVector = (pal_key_vector_t *)(payloadPtr + sizeof(pal_param_payload) +
+                                                          sizeof(effect_pal_payload_t));
+
+    palKeyVector->num_tkvs = num_kvp;
+    palKeyVector->kvp[0].key = TAG_MODULE_SPKR_VAR;
+    //Need to change once key-value string is agreed with customer
+    palKeyVector->kvp[0].value = DEFAULT_SPKR_VAR;
+
+    ret = pal_gef_rw_param(PAL_PARAM_ID_UIEFFECT, (void *) palPayload, payload_size,
+                              pal_device, PAL_STREAM_PLAYBACK_BUS, GEF_PARAM_WRITE, NULL);
+
+    if (ret) {
+        HAR_PAL_ERR(LOG_TAG,"pal_stream_set_param failed %d",ret);
+    } else {
+        HAR_PAL_INFO(LOG_TAG,"pal_stream_set_param Successful");
+    }
+
+    ret = pthread_mutex_unlock(&lock);
+    if (ret !=0)
+        HAR_PAL_ERR(LOG_TAG,": %s pthread_mutex_unlock failed", __func__);
+
+    if (payloadPtr) {
+        free(payloadPtr);
+        payloadPtr = NULL;
+    }
+    palPayload = NULL;
+    effectPalPayload = NULL;
+    palKeyVector = NULL;
+    return ret;
+}
+
+uint32_t handleSpkrVarFallbck(VehicleDataType vehicledatatype) {
+    int ret =0;
+    int num_kvp = 2;
+    pal_device_id_t pal_device = PAL_DEVICE_OUT_SPEAKER;
+
+    uint32_t payload_size = sizeof(pal_param_payload) + sizeof(effect_pal_payload_t) +
+                           sizeof(pal_key_vector_t) + num_kvp * sizeof(pal_key_value_pair_t);
+    size_t padBytes = PADDING_8BYTE_ALIGN(payload_size);
+
+    uint8_t *payloadPtr = (uint8_t*) calloc(1, payload_size + padBytes);
+    if (!payloadPtr) {
+       HAR_PAL_ERR(LOG_TAG,":%s Memory allocation failure",__func__);
+       return -ENOMEM;
+    }
+
+    pal_param_payload *palPayload = (pal_param_payload *)payloadPtr;
+    palPayload->payload_size = sizeof(effect_pal_payload_t) + sizeof(pal_key_vector_t) +
+                               num_kvp * sizeof(pal_key_value_pair_t);
+
+    effect_pal_payload_t *effectPalPayload =
+            (effect_pal_payload_t *)(payloadPtr + sizeof(pal_param_payload));
+    effectPalPayload->isTKV = PARAM_TKV;
+    effectPalPayload->tag = TAG_MODULE_SPKR_FALLBACK;
+    effectPalPayload->payloadSize =
+            sizeof(pal_key_vector_t) + num_kvp * sizeof(pal_key_value_pair_t);
+
+    pal_key_vector_t *palKeyVector = (pal_key_vector_t *)(payloadPtr + sizeof(pal_param_payload) +
+                                      sizeof(effect_pal_payload_t));
+
+    palKeyVector->num_tkvs = num_kvp;
+    palKeyVector->kvp[0].key = TAG_MODULE_SPKR_FALLBACK;
+    palKeyVector->kvp[0].value = SPKR_FALLBACK_ON;
+    palKeyVector->kvp[1].key = TAG_MODULE_SPKR_VAR;
+    palKeyVector->kvp[1].value = DEFAULT_SPKR_VAR;
+
+    ret = pal_gef_rw_param(PAL_PARAM_ID_UIEFFECT, (void *) palPayload, payload_size,
+                              pal_device, PAL_STREAM_PLAYBACK_BUS, GEF_PARAM_WRITE, NULL);
+
+    if (ret) {
+        HAR_PAL_ERR(LOG_TAG,"pal_set_param failed for ASIL Bus: %d\n",ret);
+    } else {
+        HAR_PAL_INFO(LOG_TAG,"pal_set_param successful for ASIL Bus");
+    }
+    if (payloadPtr) {
+        free(payloadPtr);
+        payloadPtr = NULL;
+    }
+    palPayload = NULL;
+    effectPalPayload = NULL;
+    palKeyVector = NULL;
+    return ret;
+}
+
 //Handler function to handle Spkr Group Availability
 uint32_t handleSpkrGrpAvailability(VehicleDataType vehicledatatype) {
 
     int status = 0;
     int ret =0;
+    int isLocked = 0;
     float vol_mb = 0.0;
     const char* bus_address = NULL;
     const char *key = NULL;
@@ -680,6 +788,8 @@ uint32_t handleSpkrGrpAvailability(VehicleDataType vehicledatatype) {
     if (ret !=0) {
        HAR_PAL_ERR(LOG_TAG,": %s pthread_mutex_lock failed", __func__);
        return ret;
+    } else {
+       isLocked = 1;
     }
 
      uint32_t payload_size = sizeof(pal_param_payload) + sizeof(effect_pal_payload_t) +
@@ -698,7 +808,27 @@ uint32_t handleSpkrGrpAvailability(VehicleDataType vehicledatatype) {
               return ret;
            }
            return -ENOMEM;
-        }
+     }
+
+      SpkrGrpAvail *zones = parse_speaker_group_availability(vehicledatatype.value.string_data,&count);
+
+       if (zones) {
+         int bitmask = get_bit_mask(zones, count);
+         if (bitmask == 0) {
+          HAR_PAL_ERR(LOG_TAG,"%s: None of the speaker group available",__func__);
+          status = -1;
+          goto cleanup;
+         } else if (bitmask > 0 && bitmask <= 3) {
+            status = handleSpkrVarFallbck(vehicledatatype);
+         } else {
+            HAR_PAL_INFO(LOG_TAG,"%s:ASIL Bus Routing to Front Group Speaker",__func__);
+         }
+
+         if (status != 0) {
+           HAR_PAL_ERR(LOG_TAG,"Speaker group routing failed for ASIL Bus: %d\n",status);
+         } else {
+           HAR_PAL_INFO(LOG_TAG,"Speaker group routing successful for ASIL Bus");
+         }
 
         //Creating payload
         pal_payload = (pal_param_payload*) payloadInfo;
@@ -726,40 +856,38 @@ uint32_t handleSpkrGrpAvailability(VehicleDataType vehicledatatype) {
         pal_awx_data_t* retrievedData = (pal_awx_data_t*)customPayload->data;
         int32_t value_VWarn = retrievedData->val[BUS_VWARN_AWX];
         int32_t value_RoadADAS = retrievedData->val[BUS_VROADADAS_AWX];
-
         Spatialization requested_zone_VWARN = int_to_enum(value_VWarn);
-	HAR_PAL_INFO(LOG_TAG, "Requested Zone for VWARN : %s\n", 
+        HAR_PAL_INFO(LOG_TAG, "Requested Zone for VWARN : %s\n",
                         outcome_zone_to_string(requested_zone_VWARN));
-	Spatialization requested_zone_RoadADAS = int_to_enum(value_RoadADAS);
-	HAR_PAL_INFO(LOG_TAG, "Requested Zone for ROAD-ADAS : %s\n", 
+        Spatialization requested_zone_RoadADAS = int_to_enum(value_RoadADAS);
+        HAR_PAL_INFO(LOG_TAG, "Requested Zone for ROAD-ADAS : %s\n",
                         outcome_zone_to_string(requested_zone_RoadADAS));
 
-        SpkrGrpAvail *zones = parse_speaker_group_availability(vehicledatatype.value.string_data,&count);
 
         ret = pthread_mutex_unlock(&lock);
         if (ret !=0) {
           HAR_PAL_ERR(LOG_TAG,": %s pthread_mutex_unlock failed", __func__);
           return ret;
-        }
-
-        if (zones) {
-           Spatialization outcome_VWARN = get_outcome(zones, count, requested_zone_VWARN);
-	   HAR_PAL_INFO(LOG_TAG, "Outcome Zone for VWARN :%d, %s\n",
-                         outcome_VWARN, outcome_zone_to_string(outcome_VWARN));
-	   audio_device = load_default_config("WARN");
-	   status = set_spatialization(&audio_device, outcome_VWARN);
-
-	   Spatialization outcome_RoadADAS = get_outcome(zones, count, requested_zone_RoadADAS);
-	   HAR_PAL_INFO(LOG_TAG, "Outcome Zone for ROAD-ADAS:%d, %s\n",
-                         outcome_RoadADAS, outcome_zone_to_string(outcome_RoadADAS));
-           audio_device = load_default_config("ROAD-ADAS");
-           status = set_spatialization(&audio_device, outcome_RoadADAS);
         } else {
-           HAR_PAL_ERR(LOG_TAG,"list empty");
-           status = -1;
-           goto cleanup;
+           isLocked = 0;
         }
 
+        Spatialization outcome_VWARN = MAPPING_TABLE[bitmask][get_column_index(requested_zone_VWARN)];
+        HAR_PAL_INFO(LOG_TAG, "Outcome Zone for VWARN :%d, %s\n",
+                         outcome_VWARN, outcome_zone_to_string(outcome_VWARN));
+        audio_device = load_default_config("WARN");
+        status = set_spatialization(&audio_device, outcome_VWARN);
+
+        Spatialization outcome_RoadADAS = MAPPING_TABLE[bitmask][get_column_index(requested_zone_RoadADAS)];
+        HAR_PAL_INFO(LOG_TAG, "Outcome Zone for ROAD-ADAS:%d, %s\n",
+                         outcome_RoadADAS, outcome_zone_to_string(outcome_RoadADAS));
+        audio_device = load_default_config("ROAD-ADAS");
+        status = set_spatialization(&audio_device, outcome_RoadADAS);
+       } else {
+            HAR_PAL_ERR(LOG_TAG,"list empty");
+            status = -1;
+            goto cleanup;
+       }
      } else {
          HAR_PAL_ERR(LOG_TAG,"Unknown VehicleDataType");
          status = -1;
@@ -775,14 +903,21 @@ cleanup:
     effect_payload = NULL;
     customPayload = NULL;
 
+    if (isLocked){
+        ret = pthread_mutex_unlock(&lock);
+        if (ret !=0) {
+            HAR_PAL_ERR(LOG_TAG," %s pthread_mutex_unlock failed", __func__);
+            return ret;
+        }
+     }
+
     if (status != 0) {
-        HAR_PAL_ERR(LOG_TAG,"Spkr Group Routing failed with error: %d\n", status);
+        HAR_PAL_ERR(LOG_TAG,"Speaker group routing failed with error: %d\n", status);
     } else {
-        HAR_PAL_INFO(LOG_TAG,"Spkr Group Routing Successful");
+        HAR_PAL_INFO(LOG_TAG,"Speaker group routing successful");
     }
 
     return status;
-
 }
 
 //Function to register ID-handler mappings
@@ -995,6 +1130,7 @@ PlatformAudioDevices get_audio_device(const char* device_id) {
     registerIdHandler("AUDIO_PARAM_ID_WS", handleWelcomeSequence);
     registerIdHandler("AUDIO_PARAM_ID_RES_VOL", handleRestoreVolume);
     registerIdHandler("AUDIO_PARAM_ID_SPKR", handleSpkrGrpAvailability);
+    registerIdHandler("AUDIO_PARAM_ID_SPKR_VAR", handleSpkrVar);
 
     place_markers("kpi_value get_audio_device enter");
     HAR_PAL_DBG(LOG_TAG,"AudioDeviceId = %s",device_id);
@@ -1144,6 +1280,7 @@ void get_buffer_size(pal_stream_element_t* handler, struct pal_stream_attributes
 int32_t Open_Device(PlatformAudioDevices *har_device) {
 
     int ret = -EINVAL;
+    int isLocked = 0;
     int32_t err = 0;
     uint32_t no_of_devices = 1;
     har_pal_out_device_id_t outDeviceId = 0;
@@ -1161,6 +1298,8 @@ int32_t Open_Device(PlatformAudioDevices *har_device) {
       HAR_PAL_ERR(LOG_TAG,"%s pthread_mutex_lock failed", __func__);
       goto exit;
     }
+    isLocked = 1;
+
     if (pal_init_status == 0) {
         ret = set_agm_status(0);
         if(ret) {
@@ -1300,16 +1439,31 @@ int32_t Open_Device(PlatformAudioDevices *har_device) {
         goto exit;
     }
 
-    goto exit;
+    ret = pthread_mutex_unlock(&lock);
+    if (ret !=0) {
+        HAR_PAL_ERR(LOG_TAG," %s pthread_mutex_unlock failed", __func__);
+        return ret;
+    }
+    isLocked = 0;
+
+    if (outDeviceId == HAR_PAL_DEVICE_OUT_SPEAKER_S_WARN){
+        VehicleDataType vehicledatatype = {
+            .key = {0},
+            .value.integer_data = 1
+        };
+        handleSpkrVar(vehicledatatype);
+    }
 
 exit:
     stream_started =0;
     free(pPvtData);
     pPvtData = NULL;
-    ret = pthread_mutex_unlock(&lock);
-    if (ret !=0) {
-      HAR_PAL_ERR(LOG_TAG," %s pthread_mutex_unlock failed", __func__);
-      return ret;
+    if (isLocked){
+        ret = pthread_mutex_unlock(&lock);
+        if (ret !=0) {
+            HAR_PAL_ERR(LOG_TAG," %s pthread_mutex_unlock failed", __func__);
+            return ret;
+        }
     }
     place_markers("kpi_value open_device exit");
     HAR_PAL_ERR(LOG_TAG,"%s.Exit",__func__);
@@ -1354,7 +1508,7 @@ uint32_t buffer_size_bytes(PlatformAudioDevices *har_device)
                             (pPvtData->audioChannels * pPvtData->audioBitDepth));
     } else {
         HAR_PAL_ERR(LOG_TAG,"%s. stream handler is null. Setting to Default",__func__);
-	pPvtData->frames = ((DEFAULT_BUF_SIZE * DEFAULT_BUF_COUNT * 8) /
+        pPvtData->frames = ((DEFAULT_BUF_SIZE * DEFAULT_BUF_COUNT * 8) /
                             (pPvtData->audioChannels * pPvtData->audioBitDepth));
     }
 
@@ -1491,8 +1645,8 @@ int32_t set_volume(PlatformAudioDevices *har_device, float volume)
             if (stream_handler == NULL) {
                 ret = -1;
                 HAR_PAL_ERR(LOG_TAG,"%s no stream for device %d", __func__, har_device->device_id);
-		free(volume_data);
-		volume_data = NULL;
+                free(volume_data);
+                volume_data = NULL;
                 pthread_mutex_unlock(&lock);
                 return ret;
             } else {
@@ -1555,6 +1709,7 @@ int32_t StopAndCloseUsecase(PlatformAudioDevices *har_device)
 
         stream_started = 0;
         stream_handler->pal_stream_handle = NULL;
+        stream_handler = NULL;
     }
     ret = pthread_mutex_unlock(&lock);
     if (ret !=0) {

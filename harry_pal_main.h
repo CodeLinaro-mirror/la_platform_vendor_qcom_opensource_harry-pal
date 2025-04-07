@@ -54,6 +54,12 @@
 #define AWX_CYBER_MASTER_MUTE  0x11112526
 #define AWX_WELCOME_MODE       0x11112540
 #define TAG_MODULE_CUSTOM_AWX  0xC0000057
+#define TAG_MODULE_SPKR_VAR    0xC0000027   //Module tag to handle speaker variant config for ASIL BUS
+#define TAG_MODULE_SPKR_FALLBACK 0xC0000028 //Module tag to handle speaker fallback for ASIL BUS
+
+#define SPKR_FALLBACK_ON 1
+//Need to remove value is passed as part of VehicleDataType.
+#define DEFAULT_SPKR_VAR 1
 #define PADDING_8BYTE_ALIGN(x)  ((((x) + 7) & 7) ^ 7)
 
 #define BUS_WS                 "BUS00_WS"

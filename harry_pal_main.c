@@ -1420,7 +1420,7 @@ int32_t Open_Device(PlatformAudioDevices *har_device) {
 
     HAR_PAL_DBG(LOG_TAG, "Calling pal_stream_open for device id =%d", har_device->device_id);
     stream_handler = get_stream_handler(har_device->device_id);
-    if (stream_handler !=NULL) {
+    if (stream_handler !=NULL && !get_agm_status()) {
        err = pal_stream_open(&pPvtData->stream_attr, no_of_devices, &pPvtData->devices, 0, NULL,
                        NULL, 0,  &stream_handler->pal_stream_handle);
     } else {
@@ -1439,13 +1439,16 @@ int32_t Open_Device(PlatformAudioDevices *har_device) {
     HAR_PAL_DBG(LOG_TAG, "outBufSize %d outBufCount %d\n",
                   stream_handler->outBufCfg.buf_size , stream_handler->outBufCfg.buf_count);
 
-    ret = pal_stream_set_buffer_size(stream_handler->pal_stream_handle, NULL, &stream_handler->outBufCfg);
+    if(!get_agm_status()) {
+        ret = pal_stream_set_buffer_size(stream_handler->pal_stream_handle, NULL, &stream_handler->outBufCfg);
+    }
     if (ret) {
         HAR_PAL_ERR(LOG_TAG,"Pal Stream set buffer size Error  (%x)\n", ret);
     }
     HAR_PAL_DBG(LOG_TAG, "%s Calling pal_stream_start",__func__);
-    ret = pal_stream_start(stream_handler->pal_stream_handle);
-
+    if(!get_agm_status()) {
+        ret = pal_stream_start(stream_handler->pal_stream_handle);
+    }
     if (ret == 0)
            stream_started = 1;
     else {
@@ -1664,7 +1667,9 @@ int32_t set_volume(PlatformAudioDevices *har_device, float volume)
                 pthread_mutex_unlock(&lock);
                 return ret;
             } else {
-               ret = pal_stream_set_volume(stream_handler->pal_stream_handle, volume_data);
+                if (!get_agm_status()) {
+                    ret = pal_stream_set_volume(stream_handler->pal_stream_handle, volume_data);
+                }
             }
             if (ret) {
                 HAR_PAL_ERR(LOG_TAG,"Pal Stream volume Error (%x)", ret);
@@ -1711,12 +1716,16 @@ int32_t StopAndCloseUsecase(PlatformAudioDevices *har_device)
         return ret;
     } else {
         HAR_PAL_DBG(LOG_TAG, "%s:pal_stream_handle = %p",__func__,stream_handler->pal_stream_handle);
-        status = pal_stream_stop(stream_handler->pal_stream_handle);
+        if(!get_agm_status()) {
+            status = pal_stream_stop(stream_handler->pal_stream_handle);
+        }
         if (status) {
            HAR_PAL_ERR(LOG_TAG,"pal_stream_stop failed");
         }
 
-        status = pal_stream_close(stream_handler->pal_stream_handle);
+        if(!get_agm_status()) {
+            status = pal_stream_close(stream_handler->pal_stream_handle);
+        }
         if (status) {
            HAR_PAL_ERR(LOG_TAG,"pal_stream_close failed");
         }
@@ -1834,8 +1843,10 @@ uint32_t set_spatialization(PlatformAudioDevices *har_device, Spatialization val
         goto cleanup;
     }
 
-    status = pal_gef_rw_param(PAL_PARAM_ID_UIEFFECT, (void *) pal_payload, payload_size,
-                              pal_device, PAL_STREAM_PLAYBACK_BUS, GEF_PARAM_WRITE, NULL);
+    if (!get_agm_status()) {
+        status = pal_gef_rw_param(PAL_PARAM_ID_UIEFFECT, (void *) pal_payload, payload_size,
+                                pal_device, PAL_STREAM_PLAYBACK_BUS, GEF_PARAM_WRITE, NULL);
+    }
 cleanup:
     if (payloadInfo) {
         free(payloadInfo);

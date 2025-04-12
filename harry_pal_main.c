@@ -1221,31 +1221,40 @@ bool parse_device_xml() {
 /*Loads default configuration, if XML Parsing fails*/
 PlatformAudioDevices load_default_config(const char* device) {
     PlatformAudioDevices audio_device;
+    strlcpy(audio_device.AudioDeviceId, "WARN", MAX_ADDRESS_LEN);
+    strlcpy(audio_device.bus_address, "BUS01_no_ASIL", MAX_ADDRESS_LEN);
+    audio_device.device_id = HAR_PAL_DEVICE_OUT_SPEAKER_V_WARN;
     audio_device.channels = 1;
-
+    audio_device.sample_rate = 48000;
+    audio_device.volume = -3100;
+    audio_device.format = 16;
 
      if (strcmp("WELCOME_SEQUENCE",device) == 0) {
         HAR_PAL_INFO(LOG_TAG,"get_audio_device id= WELCOME_SEQUENCE");
+        strlcpy(audio_device.AudioDeviceId, "WELCOME_SEQUENCE", MAX_ADDRESS_LEN);
         strlcpy(audio_device.bus_address, "BUS00_WS", MAX_ADDRESS_LEN);
-        audio_device.device_id = 2;
+        audio_device.device_id = HAR_PAL_DEVICE_OUT_SPEAKER_WS;
         audio_device.channels = 2;
      } else if (strcmp("WARN",device) == 0) {
         HAR_PAL_INFO(LOG_TAG,"get_audio_device id= WARN");
+        strlcpy(audio_device.AudioDeviceId, "WARN", MAX_ADDRESS_LEN);
         strlcpy(audio_device.bus_address, "BUS01_no_ASIL", MAX_ADDRESS_LEN);
-        audio_device.device_id = 3;
+        audio_device.device_id = HAR_PAL_DEVICE_OUT_SPEAKER_V_WARN;
      } else if (strcmp("ROAD-ADAS",device) == 0) {
         HAR_PAL_INFO(LOG_TAG,"get_audio_device id= ROAD-ADAS");
+        strlcpy(audio_device.AudioDeviceId, "ROAD-ADAS", MAX_ADDRESS_LEN);
         strlcpy(audio_device.bus_address, "BUS02_Road_ADAS", MAX_ADDRESS_LEN);
-        audio_device.device_id = 4;
+        audio_device.device_id = HAR_PAL_DEVICE_OUT_SPEAKER_ROAD_ADAS;
      } else if (strcmp("SWARN",device) == 0) {
         HAR_PAL_INFO(LOG_TAG,"get_audio_device id= SWARN");
+        strlcpy(audio_device.AudioDeviceId, "SWARN", MAX_ADDRESS_LEN);
         strlcpy(audio_device.bus_address, "BUS03_ASIL", MAX_ADDRESS_LEN);
-        audio_device.device_id = 5;
+        audio_device.device_id = HAR_PAL_DEVICE_OUT_SPEAKER_S_WARN;
+     }
+     else {
+        HAR_PAL_ERR(LOG_TAG,"Invalid device id. Loading VWARN Config");
      }
 
-     audio_device.sample_rate = 48000;
-     audio_device.volume = -3100;
-     audio_device.format = 16;
      return audio_device;
 }
 
@@ -1288,10 +1297,15 @@ int32_t Open_Device(PlatformAudioDevices *har_device) {
 
     pvt_data_t *pPvtData = calloc(1, sizeof(pvt_data_t));
     if (pPvtData == NULL) {
-        HAR_PAL_ERR(LOG_TAG,"Memory Allocation Failed\n");
-        return -1;
+      HAR_PAL_ERR(LOG_TAG,"Memory Allocation Failed\n");
+      return -ENOMEM;
     }
     place_markers("kpi_value open_device enter");
+
+    if (har_device == NULL) {
+      HAR_PAL_ERR(LOG_TAG, "Error: har_device is NULL");
+      goto exit;
+    }
 
     ret = pthread_mutex_lock(&lock);
     if (ret !=0) {
@@ -1480,7 +1494,7 @@ uint32_t buffer_size_bytes(PlatformAudioDevices *har_device)
     pvt_data_t *pPvtData = calloc(1, sizeof(pvt_data_t));
     if (pPvtData == NULL) {
         HAR_PAL_ERR(LOG_TAG,"Memory Allocation Failed\n");
-        return -1;
+        return -ENOMEM;
     }
     uint32_t buf_size;
     if (har_device) {

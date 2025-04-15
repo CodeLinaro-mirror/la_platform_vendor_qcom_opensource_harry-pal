@@ -100,7 +100,7 @@ bool is_valid_filename(const char *filename) {
 
 void sample_write(PlatformAudioDevices *platform_device,FILE *file, long data_pointer,int iter)
 {
-    char *buffer;
+    char *buffer = NULL;
     uint32_t size;
     size_t num_read;
     int32_t written;
@@ -113,12 +113,12 @@ void sample_write(PlatformAudioDevices *platform_device,FILE *file, long data_po
     fprintf(stdout, "size = %d\n",size);
     buffer = malloc(size);
 
-    if (!buffer) {
+    if (buffer != NULL) {
+        memset(buffer, 0 , size);
+    } else {
         printf("Unable to allocate %d size\n", size);
         fclose(file);
     }
-
-    memset(buffer, 0 , size);
     bytes = size/2;
     fprintf(stdout, "bytes = %d\n",bytes);
 
@@ -163,7 +163,7 @@ void disable_usecase()
 
 void *playback_multithread(void *args) {
     PlaybackData *data = (PlaybackData *)args;
-    char *buffer;
+    char *buffer = NULL;
     uint32_t size;
     size_t num_read;
     int32_t status;
@@ -194,12 +194,12 @@ void *playback_multithread(void *args) {
     fprintf(stdout, "size = %d\n",size);
     buffer = malloc(size);
 
-    if (!buffer) {
+    if (buffer != NULL) {
+        memset(buffer, 0 , size);
+    } else {
         printf("Unable to allocate %d size\n", size);
         pthread_exit(NULL);
     }
-
-    memset(buffer, 0 , size);
     bytes = size/2;
     fprintf(stdout, "bytes = %d\n",bytes);
 

@@ -90,14 +90,6 @@ Spatialization stringToEnum(const char *str) {
     }
 }
 
-bool is_valid_filename(const char *filename) {
-    // Check for invalid characters or patterns
-    if (strstr(filename, "..") != NULL || strchr(filename, '/') != NULL || strchr(filename, '\\') != NULL) {
-        return false;
-    }
-    return true;
-}
-
 void sample_write(PlatformAudioDevices *platform_device,FILE *file, long data_pointer,int iter)
 {
     char *buffer = NULL;
@@ -252,9 +244,9 @@ int main(int argc, char *argv[])
     }
 
     filename = argv[1];
-    if (!is_valid_filename(filename)) {
-        printf("Invalid filename '%s'\n", filename);
-        return 1;
+    if (filename == NULL) {
+      printf("Invalid filename '%s'\n", filename);
+      return 1;
     }
 
     file = fopen(filename, "rb");

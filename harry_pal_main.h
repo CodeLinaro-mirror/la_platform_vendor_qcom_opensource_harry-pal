@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  * SPDX-License-Identifier: BSD-3-Clause-Clear
  */
 
@@ -304,7 +304,7 @@ IdHandler idHandlerMap[100];
 size_t idHandlerCount = 0;   //Number of registered IDs
 
 static inline void place_markers(char const *name){
-   int fd=open("/sys/kernel/boot_kpi/kpi_values", O_WRONLY);
+   int fd=open("/dev/kmsg_debug", O_WRONLY);
    if (fd > 0)
    {
        char har_kpi[100] = {0};

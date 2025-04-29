@@ -1,9 +1,4 @@
 /*
-* Changes from Qualcomm Innovation Center, Inc. are provided under the following license:
-* Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
-* SPDX-License-Identifier: BSD-3-Clause-Clear
-*/
-/*
 **
 ** Copyright 2011, The Android Open Source Project
 **
@@ -29,6 +24,9 @@
 ** LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
 ** OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH
 ** DAMAGE.
+** Changes from Qualcomm Technologies, Inc. are provided under the following license:
+** Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+** SPDX-License-Identifier: BSD-3-Clause-Clear.
 */
 
 
@@ -97,6 +95,7 @@ void sample_write(PlatformAudioDevices *platform_device,FILE *file, long data_po
     size_t num_read;
     int32_t written;
     uint32_t bytes;
+    int fb = 0;
 
     fprintf(stdout, "Enabling write\n");
     place_markers("kpi_value HarPalTest start playback");
@@ -125,6 +124,10 @@ void sample_write(PlatformAudioDevices *platform_device,FILE *file, long data_po
             num_read = fread(buffer, 1, bytes, file);
             if (num_read > 0) {
                 written = try_play_bytes(platform_device,buffer,bytes);
+                if(fb <= 1){
+                    place_markers("kpi_value HARPALTEST first byte success");
+                    fb++;
+                }
                 if (written < 0) {
                     fprintf(stdout, "Write Failed\n");
                     break;

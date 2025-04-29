@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  * SPDX-License-Identifier: BSD-3-Clause-Clear
  */
 
@@ -356,7 +356,7 @@ uint32_t handleMasterMute(VehicleDataType vehicledatatype) {
              __func__,
              vehicledatatype.key,
              vehicledatatype.value.integer_data);
-
+    place_markers("kpi_value handleMasterMute enter");
 
      ret = pthread_mutex_lock(&lock);
     if (ret !=0) {
@@ -403,6 +403,7 @@ uint32_t handleMasterMute(VehicleDataType vehicledatatype) {
 
         status = pal_gef_rw_param(PAL_PARAM_ID_UIEFFECT, (void *) pal_payload, payload_size,
                               pal_device, PAL_STREAM_PLAYBACK_BUS, GEF_PARAM_WRITE, NULL);
+        place_markers("kpi_value handleMasterMute DONE");
 
     } else {
         HAR_PAL_ERR(LOG_TAG,"Unknown VehicleDataType");
@@ -1325,11 +1326,13 @@ int32_t Open_Device(PlatformAudioDevices *har_device) {
              return ret;
            }
         auto_audio_ar_ext_wait_agm();
+        place_markers("kpi_value pal_init enter");
         err = pal_init();
         if (err) {
             HAR_PAL_ERR(LOG_TAG,"pal_init failed");
             goto exit;
         }
+        place_markers("kpi_value pal_init DONE");
         pal_init_status++;
     }
 
@@ -1421,8 +1424,10 @@ int32_t Open_Device(PlatformAudioDevices *har_device) {
     HAR_PAL_DBG(LOG_TAG, "Calling pal_stream_open for device id =%d", har_device->device_id);
     stream_handler = get_stream_handler(har_device->device_id);
     if (stream_handler !=NULL && !get_agm_status()) {
-       err = pal_stream_open(&pPvtData->stream_attr, no_of_devices, &pPvtData->devices, 0, NULL,
+        place_markers("kpi_value pal_stream_open enter");
+        err = pal_stream_open(&pPvtData->stream_attr, no_of_devices, &pPvtData->devices, 0, NULL,
                        NULL, 0,  &stream_handler->pal_stream_handle);
+        place_markers("kpi_value pal_stream_open DONE");
     } else {
         HAR_PAL_ERR(LOG_TAG, "Error: pal_stream_handle is NULL");
         goto exit;
@@ -1447,7 +1452,9 @@ int32_t Open_Device(PlatformAudioDevices *har_device) {
     }
     HAR_PAL_DBG(LOG_TAG, "%s Calling pal_stream_start",__func__);
     if(!get_agm_status()) {
+        place_markers("kpi_value pal_stream_start enter");
         ret = pal_stream_start(stream_handler->pal_stream_handle);
+        place_markers("kpi_value pal_stream_start DONE");
     }
     if (ret == 0)
            stream_started = 1;

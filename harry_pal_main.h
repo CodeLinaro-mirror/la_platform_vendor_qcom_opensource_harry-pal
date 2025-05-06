@@ -41,7 +41,7 @@
 #define AGM_INIT_SLEEP_WAIT 10 /* 10 ms */
 #define SNDCARD_PATH "/sys/kernel/snd_card/card_state"
 #define MAX_RETRY 100 /*Device will try these many times before return an error*/
-#define RETRY_INTERVAL 1 /*Retry interval in seconds*/
+#define RETRY_INTERVAL 10 /*Retry interval in milliseconds*/
 
 #ifndef AGM_DEFAULT_STATE
 #define AGM_DEFAULT_STATE "\0"

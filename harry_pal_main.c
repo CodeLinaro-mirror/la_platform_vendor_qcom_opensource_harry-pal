@@ -160,7 +160,7 @@ static int wait_for_snd_card_to_online()
             }
         }
         retries--;
-        sleep(RETRY_INTERVAL);
+        usleep(RETRY_INTERVAL * 1000);
     } while ( retries > 0);
 
     if (0 == retries) {

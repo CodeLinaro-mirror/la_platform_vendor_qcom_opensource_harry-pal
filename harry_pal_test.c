@@ -109,6 +109,7 @@ void sample_write(PlatformAudioDevices *platform_device,FILE *file, long data_po
     } else {
         printf("Unable to allocate %d size\n", size);
         fclose(file);
+        return;
     }
     bytes = size/2;
     fprintf(stdout, "bytes = %d\n",bytes);
@@ -170,7 +171,7 @@ void *playback_multithread(void *args) {
             plat_device.device_id, plat_device.channels);
      status = Open_Device(&plat_device);
     if (status) {
-        printf(stdout, "Open_Device failed\n");
+        fprintf(stdout, "Open_Device failed\n");
         pthread_exit(NULL);
     }
     set_volume(&plat_device,data->volume);
@@ -248,9 +249,10 @@ int main(int argc, char *argv[])
 
     filename = argv[1];
     if (filename == NULL) {
-      printf("Invalid filename '%s'\n", filename);
+      printf("Invalid filename");
       return 1;
     }
+    printf("filename: %s \n",filename);
 
     file = fopen(filename, "rb");
     if (!file) {
@@ -374,7 +376,7 @@ int main(int argc, char *argv[])
                 fprintf(stdout, "platform_device.AudioDeviceId = %d, channels = %d\n", platform_device.device_id, platform_device.channels);
                 status = Open_Device(&platform_device);
                 if (status) {
-                    printf(stdout, "Open_Device failed\n");
+                    fprintf(stdout, "Open_Device failed\n");
                     break;
                 }
                 set_volume(&platform_device, vol);

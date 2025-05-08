@@ -593,6 +593,11 @@ uint32_t handleRestoreVolume(VehicleDataType vehicledatatype) {
 
                 if (bus_address == NULL) {
                     HAR_PAL_ERR(LOG_TAG, "%s:Invalid Bus Address",__func__);
+                    ret = pthread_mutex_unlock(&lock);
+                    if (ret !=0) {
+                      HAR_PAL_ERR(LOG_TAG,":%s pthread_mutex_unlock failed", __func__);
+                      return ret;
+                    }
                     return -1;
                 }
 
@@ -1118,7 +1123,7 @@ void XMLCALL character_data_handler(void *userData, const char *s, int len) {
  */
 PlatformAudioDevices get_audio_device(const char* device_id) {
     int ret;
-    PlatformAudioDevices audio_device;
+    PlatformAudioDevices audio_device = {0};
     audio_device.device_id = -1;
     ret = pthread_mutex_lock(&lock);
     if (ret !=0) {
@@ -1323,6 +1328,11 @@ int32_t Open_Device(PlatformAudioDevices *har_device) {
         ret = wait_for_snd_card_to_online();
           if (ret) {
              HAR_PAL_ERR(LOG_TAG,"Not found any SND card online\n");
+             ret = pthread_mutex_unlock(&lock);
+             if (ret !=0) {
+               HAR_PAL_ERR(LOG_TAG,":%s pthread_mutex_unlock failed", __func__);
+               return ret;
+             }
              return ret;
            }
         auto_audio_ar_ext_wait_agm();
@@ -1507,7 +1517,7 @@ uint32_t buffer_size_bytes(PlatformAudioDevices *har_device)
         return -ENOMEM;
     }
     uint32_t buf_size;
-    if (har_device) {
+    if (har_device != NULL) {
         if (har_device->format >= HAR_AUDIO_BIT_DEPTH_8BIT &&
                 har_device->format <= HAR_AUDIO_BIT_DEPTH_64BIT) {
             pPvtData->audioBitDepth = har_device->format;
@@ -1524,6 +1534,9 @@ uint32_t buffer_size_bytes(PlatformAudioDevices *har_device)
             HAR_PAL_ERR(LOG_TAG, "Invalid audio channels configured.Setting to default.");
             pPvtData->audioChannels = HAR_AUDIO_CHANNELS_2;
         }
+    } else {
+        HAR_PAL_ERR(LOG_TAG,"har_device is NULL\n");
+        return -1;
     }
 
     stream_handler = get_stream_handler(har_device->device_id);
@@ -1627,12 +1640,15 @@ int32_t set_volume(PlatformAudioDevices *har_device, float volume)
     pal_stream_element_t* stream_handler = NULL;
 
     HAR_PAL_DBG(LOG_TAG,"%s.Enter, volume = %f for device id=%d",__func__, volume, har_device->device_id);
-    if (har_device) {
+    if (har_device != NULL) {
        if (har_device->channels >= HAR_AUDIO_CHANNELS_1 &&
                 har_device->channels <= HAR_AUDIO_CHANNELS_32) {
             channels = har_device->channels;
             HAR_PAL_VERBOSE(LOG_TAG, "audioChannels = %d", channels);
         }
+    } else {
+        HAR_PAL_ERR(LOG_TAG,"har_device is NULL\n");
+        return -1;
     }
 
     ret = pthread_mutex_lock(&lock);

@@ -387,6 +387,52 @@ int main(int argc, char *argv[])
                 disable_usecase();
                 fclose(file);
                 break;
+            case 'g' :
+                platform_device = get_audio_device("WELCOME_SEQUENCE");
+                fprintf(stdout, "platform_device.AudioDeviceId = %d, channels = %d\n", platform_device.device_id, platform_device.channels);
+                set_volume(&platform_device, vol);
+                status = Open_Device(&platform_device);
+                if (status) {
+                    fprintf(stdout, "Open_Device failed\n");
+                    break;
+                }
+                set_spatialization(&platform_device, spt);
+                platform_device = get_audio_device("WARN");
+                fprintf(stdout, "platform_device.device_id = %d channels = %d\n", platform_device.device_id, platform_device.channels);
+                set_volume(&platform_device, vol);
+                status = Open_Device(&platform_device);
+                if (status) {
+                    fprintf(stdout, "Open_Device failed\n");
+                    break;
+                }
+                set_spatialization(&platform_device, spt);
+                set_custom_parameter(id, vehicledatatype);
+                fprintf(stdout, "\n set_custom_parameter called\n");
+                set_custom_parameter(id, vehicledatatype);
+                fprintf(stdout, "\n set_custom_parameter called\n");
+                platform_device = get_audio_device("ROAD-ADAS");
+                fprintf(stdout, "platform_device.device_id = %d channels = %d\n", platform_device.device_id, platform_device.channels);
+                set_volume(&platform_device, vol);
+                status = Open_Device(&platform_device);
+                if (status) {
+                    fprintf(stdout, "Open_Device failed\n");
+                    break;
+                }
+                set_spatialization(&platform_device, spt);
+                set_custom_parameter(id, vehicledatatype);
+                fprintf(stdout, "\n set_custom_parameter called\n");
+                platform_device = get_audio_device("ROAD-ADAS");
+                fprintf(stdout, "platform_device.device_id = %d channels = %d\n", platform_device.device_id, platform_device.channels);
+                set_volume(&platform_device, vol);
+                status = Open_Device(&platform_device);
+                if (status) {
+                    fprintf(stdout, "Open_Device failed\n");
+                    break;
+                }
+                set_spatialization(&platform_device, spt);
+                set_custom_parameter(id, vehicledatatype);
+                fprintf(stdout, "\n set_custom_parameter called\n");
+                break;
             case 'w' :
                 platform_device = get_audio_device("WARN");
                 fprintf(stdout, "platform_device.device_id = %d channels = %d\n", platform_device.device_id, platform_device.channels);
@@ -489,7 +535,7 @@ int main(int argc, char *argv[])
                 fclose(file);
                 break;
             default:
-                fprintf(stdout, "Enter s,w,r to start the usecase or c to close the usecase\n");
+                fprintf(stdout, "Enter s,w,r,g to start the usecase or c to close the usecase\n");
                 break;
             }
     }

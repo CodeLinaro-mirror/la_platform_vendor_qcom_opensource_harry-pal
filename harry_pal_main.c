@@ -1617,6 +1617,11 @@ ssize_t try_play_bytes(PlatformAudioDevices *har_device, void *buffer, int bytes
             ret = -EINVAL;
             goto exit;
         }
+        if (stream_handler->pal_stream_handle  == NULL) {
+           HAR_PAL_ERR(LOG_TAG,"pal_stream_handle is not available");
+           ret = -EINVAL;
+           goto exit;
+        }
         ret = pal_stream_write(stream_handler->pal_stream_handle, &palBuffer);
     }
 exit:
@@ -1689,6 +1694,13 @@ int32_t set_volume(PlatformAudioDevices *har_device, float volume)
                 volume_data = NULL;
                 pthread_mutex_unlock(&lock);
                 return ret;
+            } else if (stream_handler->pal_stream_handle  == NULL) {
+                ret = -1;
+                HAR_PAL_ERR(LOG_TAG,"pal sream handle is not available");
+                free(volume_data);
+                volume_data = NULL;
+                pthread_mutex_unlock(&lock);
+                return ret;
             } else {
                 if (!get_agm_status()) {
                     ret = pal_stream_set_volume(stream_handler->pal_stream_handle, volume_data);
@@ -1739,6 +1751,15 @@ int32_t StopAndCloseUsecase(PlatformAudioDevices *har_device)
         return ret;
     } else {
         HAR_PAL_DBG(LOG_TAG, "%s:pal_stream_handle = %p",__func__,stream_handler->pal_stream_handle);
+        if (stream_handler->pal_stream_handle  == NULL) {
+           HAR_PAL_ERR(LOG_TAG,"pal_stream_handle is not available");
+           err = pthread_mutex_unlock(&lock);
+           if (err !=0) {
+               HAR_PAL_ERR(LOG_TAG,"%s pthread_mutex_lock failed", __func__);
+               return err;
+           }
+           return -1;
+        }
         if(!get_agm_status()) {
             status = pal_stream_stop(stream_handler->pal_stream_handle);
         }

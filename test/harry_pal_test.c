@@ -40,8 +40,8 @@
 #include <signal.h>
 #include <fcntl.h>
 #include <expat.h>
-#include "harry_pal_main.h"
-#include "harry_pal_common.h"
+#include "inc/harry_pal_main.h"
+#include "inc/harry_pal_common.h"
 
 static int streamClose = 0;
 

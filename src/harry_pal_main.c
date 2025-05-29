@@ -5,8 +5,8 @@
 
 #define LOG_TAG "HAR_PAL"
 
-#include "harry_pal_common.h"
-#include "harry_pal_main.h"
+#include "inc/harry_pal_common.h"
+#include "inc/harry_pal_main.h"
 #include <errno.h>
 #include <string.h>
 #include <dlfcn.h>
@@ -827,8 +827,8 @@ uint32_t handleSpkrGrpAvailability(VehicleDataType vehicledatatype) {
           HAR_PAL_ERR(LOG_TAG,"%s: None of the speaker group available",__func__);
           status = -1;
           goto cleanup;
-         } else if ((bitmask > 0 && bitmask <= 3) ||  phandler == &asil_handler) {
-            //0 represents all speakers failed, 3 represents Rear speakers failure
+         } else if ((bitmask > 0 && bitmask <= 3) && phandler == &asil_handler) {
+            //0 represents all speakers failed, 3 represents Front speakers Failed
             status = handleSpkrVarFallbck(vehicledatatype, phandler);
          } else {
             HAR_PAL_INFO(LOG_TAG,"%s:ASIL Bus Routing to Front Group Speaker",__func__);
@@ -855,7 +855,7 @@ uint32_t handleSpkrGrpAvailability(VehicleDataType vehicledatatype) {
         effect_payload->payloadSize = sizeof(pal_effect_custom_payload_t) + sizeof(pal_awx_data_t);
         customPayload->paramId = AWX_SPATIALIZATION;
 
-          status = pal_stream_set_param(phandler->pal_stream_handle,PAL_PARAM_ID_UIEFFECT, (void *) pal_payload);
+          status = pal_stream_get_param(phandler->pal_stream_handle,PAL_PARAM_ID_UIEFFECT, (void *) pal_payload);
 
         if (status != 0) {
            HAR_PAL_ERR(LOG_TAG,"%s: get param failed with error: %d\n",__func__, status);

@@ -31,6 +31,8 @@
 #define DEFAULT_BUF_SIZE 1024
 #define DEFAULT_BUF_COUNT 4
 
+#define HAR_SPKR_AVAIL_ALL 15 //corresponds to bitmask 1111 for speaker group availability
+
 #define NUM_REQUESTED_ZONES 9
 #define NUM_ZONES 4
 

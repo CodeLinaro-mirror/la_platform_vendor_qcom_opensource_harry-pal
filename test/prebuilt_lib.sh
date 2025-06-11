@@ -4,12 +4,10 @@
 # Any change within QC projects may disalign the prebuilts used
 # by disco to have apex available dependencies
 #
+# Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+# SPDX-License-Identifier: BSD-3-Clause-Clear
 #
 ####################################################################
-/*
-* Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
-* SPDX-License-Identifier: BSD-3-Clause-Clear
-*/
 
 HARRY_DIR=$1
 VENDOR_DIR="${HARRY_DIR}../../../../../out/target/product/gen4_gvm_cdcsdv/vendor/lib64"
@@ -19,6 +17,7 @@ echo "VENDOR_DIR = ${VENDOR_DIR}"
 mkdir -p lib64
 
 cp -rf ${VENDOR_DIR}/libhar-pal.so                      ${HARRY_DIR}lib64/
+cp -rf ${VENDOR_DIR}/libar-pal.so                       ${HARRY_DIR}lib64/
 cp -rf ${VENDOR_DIR}/libar-gsl.so                       ${HARRY_DIR}lib64/
 cp -rf ${VENDOR_DIR}/liblx-osal.so                      ${HARRY_DIR}lib64/
 cp -rf ${VENDOR_DIR}/libdiag.so                         ${HARRY_DIR}lib64/

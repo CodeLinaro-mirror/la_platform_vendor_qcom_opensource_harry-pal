@@ -25,11 +25,13 @@
 
 #define PCM_DEVICE_NAME_DEFAULT "default"
 #define DEEP_BUFFER_PERIOD_SIZE 1920
-#define LOW_LATENCY_PERIOD_SIZE 240
-#define PERIOD_COUNT 2
+#define LOW_LATENCY_PERIOD_SIZE 960  //20ms
+#define PERIOD_COUNT 4
 #define DEFAULT_CARD_ID 0
 #define DEFAULT_BUF_SIZE 1024
 #define DEFAULT_BUF_COUNT 4
+
+#define HAR_SPKR_AVAIL_ALL 15 //corresponds to bitmask 1111 for speaker group availability
 
 #define NUM_REQUESTED_ZONES 9
 #define NUM_ZONES 4

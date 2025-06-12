@@ -5,8 +5,8 @@
 
 #define LOG_TAG "HAR_PAL"
 
-#include "harry_pal_common.h"
-#include "harry_pal_main.h"
+#include "inc/harry_pal_common.h"
+#include "inc/harry_pal_main.h"
 #include <errno.h>
 #include <string.h>
 #include <dlfcn.h>
@@ -24,6 +24,7 @@ static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 static PlatformAudioDevices platform_audio_devices_list[MAX_DEVICES];
 
 uint8_t stream_started = 0;
+static int spkr_grp_avail = HAR_SPKR_AVAIL_ALL;
 
 typedef struct {
     // ALSA Device name
@@ -351,6 +352,7 @@ uint32_t handleMasterMute(VehicleDataType vehicledatatype) {
     pal_effect_custom_payload_t* customPayload = NULL;
     Type2_param* MasterMute = NULL;
     pal_device_id_t pal_device = PAL_DEVICE_OUT_SPEAKER;
+    pal_stream_element_t* phandler = NULL;
 
     HAR_PAL_DBG(LOG_TAG, "%s:VehicleDataType: Key = %s, Value  = %d",
              __func__,
@@ -358,12 +360,24 @@ uint32_t handleMasterMute(VehicleDataType vehicledatatype) {
              vehicledatatype.value.integer_data);
     place_markers("kpi_value handleMasterMute enter");
 
-     ret = pthread_mutex_lock(&lock);
-    if (ret !=0) {
-      HAR_PAL_ERR(LOG_TAG,": %s pthread_mutex_lock failed", __func__);
-      return ret;
+    for (int busid = HAR_PAL_DEVICE_OUT_SPEAKER_WS; busid <= HAR_PAL_DEVICE_OUT_SPEAKER_S_WARN; busid++) {
+        phandler = get_stream_handler(busid);
+        if (phandler != NULL && phandler->pal_stream_handle != NULL) {
+            HAR_PAL_DBG(LOG_TAG, "phandler %p pal_stream_handle %p", phandler, phandler->pal_stream_handle);
+            //breaking for the first active instance of handler because all graph has same awx module.
+            break;
+        }
     }
 
+    if (phandler == NULL || phandler->pal_stream_handle == NULL) {
+        HAR_PAL_ERR(LOG_TAG, "No valid stream handle found");
+        return -1;
+    }
+
+    if (phandler == &asil_handler) {
+       HAR_PAL_DBG(LOG_TAG, "skip set_custom_parameter for ASIL Bus");
+       return -1;
+    }
     uint32_t payload_size = sizeof(pal_param_payload) + sizeof(effect_pal_payload_t) +
                                  sizeof(pal_effect_custom_payload_t) + sizeof(Type2_param);
 
@@ -377,11 +391,6 @@ uint32_t handleMasterMute(VehicleDataType vehicledatatype) {
         payloadInfo = (uint8_t*) calloc(1, payload_size + padBytes);
         if (!payloadInfo) {
            HAR_PAL_ERR(LOG_TAG,":%s Memory allocation failure",__func__);
-           ret = pthread_mutex_unlock(&lock);
-           if (ret !=0) {
-              HAR_PAL_ERR(LOG_TAG,":%s pthread_mutex_unlock failed", __func__);
-              return ret;
-           }
            return -ENOMEM;
         }
 
@@ -401,8 +410,7 @@ uint32_t handleMasterMute(VehicleDataType vehicledatatype) {
         MasterMute = (Type2_param*)customPayload->data;
         MasterMute->value = vehicledatatype.value.integer_data;
 
-        status = pal_gef_rw_param(PAL_PARAM_ID_UIEFFECT, (void *) pal_payload, payload_size,
-                              pal_device, PAL_STREAM_PLAYBACK_BUS, GEF_PARAM_WRITE, NULL);
+        status = pal_stream_set_param(phandler->pal_stream_handle,PAL_PARAM_ID_UIEFFECT, (void *) pal_payload);
         place_markers("kpi_value handleMasterMute DONE");
 
     } else {
@@ -419,11 +427,7 @@ cleanup:
     pal_payload = NULL;
     effect_payload = NULL;
     customPayload = NULL;
-    ret = pthread_mutex_unlock(&lock);
-    if (ret !=0) {
-      HAR_PAL_ERR(LOG_TAG,": %s pthread_mutex_unlock failed", __func__);
-      return ret;
-    }
+
 
     if (status != 0) {
         HAR_PAL_ERR(LOG_TAG,"Set master mute failed with error: %d\n", status);
@@ -445,6 +449,7 @@ uint32_t handleWelcomeSequence(VehicleDataType vehicledatatype) {
     pal_effect_custom_payload_t* customPayload = NULL;
     Type2_param* WelcomeState = NULL;
     pal_device_id_t pal_device = PAL_DEVICE_OUT_SPEAKER;
+    pal_stream_element_t* phandler = NULL;
 
     HAR_PAL_DBG(LOG_TAG, "%s:VehicleDataType: Key = %s, Value  = %d",
              __func__,
@@ -452,12 +457,24 @@ uint32_t handleWelcomeSequence(VehicleDataType vehicledatatype) {
              vehicledatatype.value.integer_data);
 
 
-     ret = pthread_mutex_lock(&lock);
-    if (ret !=0) {
-      HAR_PAL_ERR(LOG_TAG,": %s pthread_mutex_lock failed", __func__);
-      return ret;
+    for (int busid = HAR_PAL_DEVICE_OUT_SPEAKER_WS; busid <= HAR_PAL_DEVICE_OUT_SPEAKER_S_WARN; busid++) {
+        phandler = get_stream_handler(busid);
+        if (phandler != NULL && phandler->pal_stream_handle != NULL) {
+            HAR_PAL_DBG(LOG_TAG, "phandler %p pal_stream_handle %p", phandler, phandler->pal_stream_handle);
+            //breaking for the first active instance of handler because all graph has same awx module.
+            break;
+        }
     }
 
+    if (phandler == NULL || phandler->pal_stream_handle == NULL) {
+        HAR_PAL_ERR(LOG_TAG, "No valid stream handle found");
+        return -1;
+    }
+
+    if (phandler == &asil_handler) {
+       HAR_PAL_DBG(LOG_TAG, "skip set_custom_parameter for ASIL Bus");
+       return -1;
+    }
     uint32_t payload_size = sizeof(pal_param_payload) + sizeof(effect_pal_payload_t) +
                                  sizeof(pal_effect_custom_payload_t) + sizeof(Type2_param);;
 
@@ -468,11 +485,6 @@ uint32_t handleWelcomeSequence(VehicleDataType vehicledatatype) {
         payloadInfo = (uint8_t*) calloc(1, payload_size + padBytes);
         if (!payloadInfo) {
            HAR_PAL_ERR(LOG_TAG,":%s Memory allocation failure",__func__);
-           ret = pthread_mutex_unlock(&lock);
-           if (ret !=0) {
-              HAR_PAL_ERR(LOG_TAG,":%s pthread_mutex_unlock failed", __func__);
-              return ret;
-           }
            return -ENOMEM;
         }
 
@@ -491,8 +503,7 @@ uint32_t handleWelcomeSequence(VehicleDataType vehicledatatype) {
         WelcomeState = (Type2_param*)customPayload->data;
         WelcomeState->value = vehicledatatype.value.integer_data;
 
-        status = pal_gef_rw_param(PAL_PARAM_ID_UIEFFECT, (void *) pal_payload, payload_size,
-                              pal_device, PAL_STREAM_PLAYBACK_BUS, GEF_PARAM_WRITE, NULL);
+        status = pal_stream_set_param(phandler->pal_stream_handle,PAL_PARAM_ID_UIEFFECT, (void *) pal_payload);
 
     } else {
         HAR_PAL_ERR(LOG_TAG,"Unknown VehicleDataType");
@@ -508,12 +519,6 @@ cleanup:
     pal_payload = NULL;
     effect_payload = NULL;
     customPayload = NULL;
-    ret = pthread_mutex_unlock(&lock);
-    if (ret !=0) {
-      HAR_PAL_ERR(LOG_TAG,": %s pthread_mutex_unlock failed", __func__);
-      return ret;
-    }
-
     if (status != 0) {
         HAR_PAL_ERR(LOG_TAG,"Set welcome sequence failed with error: %d\n", status);
     } else {
@@ -538,6 +543,7 @@ uint32_t handleRestoreVolume(VehicleDataType vehicledatatype) {
     pal_awx_data_t* RestoreVolume = NULL;
     pal_awx_bus_type_t bus_index = BUS_RESERVED;
     pal_device_id_t pal_device = PAL_DEVICE_OUT_SPEAKER;
+    pal_stream_element_t* phandler = NULL;
     int count;
 
     key = vehicledatatype.key;
@@ -547,12 +553,24 @@ uint32_t handleRestoreVolume(VehicleDataType vehicledatatype) {
     HAR_PAL_DBG(LOG_TAG,"parse_volume_string after list\n");
 
     if(list) {
-        ret = pthread_mutex_lock(&lock);
-        if (ret !=0) {
-            HAR_PAL_ERR(LOG_TAG,": %s pthread_mutex_lock failed", __func__);
-            return ret;
+        for (int busid = HAR_PAL_DEVICE_OUT_SPEAKER_WS; busid <= HAR_PAL_DEVICE_OUT_SPEAKER_S_WARN; busid++) {
+            phandler = get_stream_handler(busid);
+            if (phandler != NULL && phandler->pal_stream_handle != NULL) {
+               HAR_PAL_DBG(LOG_TAG, "phandler %p pal_stream_handle %p", phandler, phandler->pal_stream_handle);
+               //breaking for the first active instance of handler because all graph has same awx module.
+               break;
+            }
         }
 
+        if (phandler == NULL || phandler->pal_stream_handle == NULL) {
+           HAR_PAL_ERR(LOG_TAG, "No valid stream handle found");
+           return -1;
+        }
+
+        if (phandler == &asil_handler) {
+            HAR_PAL_DBG(LOG_TAG, "skip set_custom_parameter for ASIL Bus");
+            return -1;
+        }
         uint32_t payload_size = sizeof(pal_param_payload) + sizeof(effect_pal_payload_t) +
                                     sizeof(pal_effect_custom_payload_t) + sizeof(pal_awx_data_t);
 
@@ -563,11 +581,7 @@ uint32_t handleRestoreVolume(VehicleDataType vehicledatatype) {
             payloadInfo = (uint8_t*) calloc(1, payload_size + padBytes);
             if (!payloadInfo) {
                HAR_PAL_ERR(LOG_TAG,":%s Memory allocation failure",__func__);
-               ret = pthread_mutex_unlock(&lock);
-               if (ret !=0) {
-                  HAR_PAL_ERR(LOG_TAG,":%s pthread_mutex_unlock failed", __func__);
-                  return ret;
-               }
+
                return -ENOMEM;
             }
 
@@ -593,11 +607,6 @@ uint32_t handleRestoreVolume(VehicleDataType vehicledatatype) {
 
                 if (bus_address == NULL) {
                     HAR_PAL_ERR(LOG_TAG, "%s:Invalid Bus Address",__func__);
-                    ret = pthread_mutex_unlock(&lock);
-                    if (ret !=0) {
-                      HAR_PAL_ERR(LOG_TAG,":%s pthread_mutex_unlock failed", __func__);
-                      return ret;
-                    }
                     return -1;
                 }
 
@@ -611,8 +620,7 @@ uint32_t handleRestoreVolume(VehicleDataType vehicledatatype) {
                 RestoreVolume->reserved = 0;
                 RestoreVolume->val[0] = vol_mb;
 
-                status = pal_gef_rw_param(PAL_PARAM_ID_UIEFFECT, (void *) pal_payload, payload_size,
-                                  pal_device, PAL_STREAM_PLAYBACK_BUS, GEF_PARAM_WRITE, NULL);
+                status = pal_stream_set_param(phandler->pal_stream_handle,PAL_PARAM_ID_UIEFFECT, (void *) pal_payload);
             }
         } else {
             HAR_PAL_ERR(LOG_TAG,"Unknown VehicleDataType");
@@ -630,11 +638,6 @@ cleanup:
     pal_payload = NULL;
     effect_payload = NULL;
     customPayload = NULL;
-    ret = pthread_mutex_unlock(&lock);
-    if (ret !=0) {
-        HAR_PAL_ERR(LOG_TAG,": %s pthread_mutex_unlock failed", __func__);
-        return ret;
-    }
 
     if (status != 0) {
         HAR_PAL_ERR(LOG_TAG,"Restore Volume  failed with error: %d\n", status);
@@ -646,15 +649,16 @@ cleanup:
 
 }
 
+//Function to set speaker variant configuration for ASIL Usecase
 uint32_t handleSpkrVar(VehicleDataType vehicledatatype) {
     int ret =0;
     int num_kvp = 1;
     pal_device_id_t pal_device = PAL_DEVICE_OUT_SPEAKER;
+    pal_stream_element_t* phandler = get_stream_handler(HAR_PAL_DEVICE_OUT_SPEAKER_S_WARN);
 
-    ret = pthread_mutex_lock(&lock);
-    if (ret !=0) {
-       HAR_PAL_ERR(LOG_TAG,": %s pthread_mutex_lock failed", __func__);
-       return ret;
+    if (phandler == NULL || phandler->pal_stream_handle == NULL) {
+        HAR_PAL_ERR(LOG_TAG, "%s:No valid stream handle found for ASIL",__func__);
+        return -1;
     }
 
     uint32_t payload_size = sizeof(pal_param_payload) + sizeof(effect_pal_payload_t) +
@@ -664,11 +668,6 @@ uint32_t handleSpkrVar(VehicleDataType vehicledatatype) {
     uint8_t *payloadPtr = (uint8_t*) calloc(num_kvp, payload_size + padBytes);
     if (!payloadPtr) {
        HAR_PAL_ERR(LOG_TAG,":%s Memory allocation failure",__func__);
-       ret = pthread_mutex_unlock(&lock);
-       if (ret !=0) {
-            HAR_PAL_ERR(LOG_TAG,":%s pthread_mutex_unlock failed %d", __func__,ret);
-            return ret;
-       }
        return -ENOMEM;
     }
 
@@ -691,8 +690,7 @@ uint32_t handleSpkrVar(VehicleDataType vehicledatatype) {
     //Need to change once key-value string is agreed with customer
     palKeyVector->kvp[0].value = DEFAULT_SPKR_VAR;
 
-    ret = pal_gef_rw_param(PAL_PARAM_ID_UIEFFECT, (void *) palPayload, payload_size,
-                              pal_device, PAL_STREAM_PLAYBACK_BUS, GEF_PARAM_WRITE, NULL);
+    ret = pal_stream_set_param(phandler->pal_stream_handle,PAL_PARAM_ID_UIEFFECT, (void *) palPayload);
 
     if (ret) {
         HAR_PAL_ERR(LOG_TAG,"pal_stream_set_param failed %d",ret);
@@ -700,9 +698,6 @@ uint32_t handleSpkrVar(VehicleDataType vehicledatatype) {
         HAR_PAL_INFO(LOG_TAG,"pal_stream_set_param Successful");
     }
 
-    ret = pthread_mutex_unlock(&lock);
-    if (ret !=0)
-        HAR_PAL_ERR(LOG_TAG,": %s pthread_mutex_unlock failed", __func__);
 
     if (payloadPtr) {
         free(payloadPtr);
@@ -714,10 +709,18 @@ uint32_t handleSpkrVar(VehicleDataType vehicledatatype) {
     return ret;
 }
 
+//Handler function to set speaker group availability for ASIL Usecase
 uint32_t handleSpkrVarFallbck(VehicleDataType vehicledatatype) {
     int ret =0;
     int num_kvp = 2;
     pal_device_id_t pal_device = PAL_DEVICE_OUT_SPEAKER;
+
+    pal_stream_element_t* phandler = get_stream_handler(HAR_PAL_DEVICE_OUT_SPEAKER_S_WARN);
+
+    if (phandler == NULL || phandler->pal_stream_handle == NULL) {
+        HAR_PAL_ERR(LOG_TAG, "%s:It is AWX bus OR Invalid stream handle found for ASIL Usecase",__func__);
+        return -1;
+    }
 
     uint32_t payload_size = sizeof(pal_param_payload) + sizeof(effect_pal_payload_t) +
                            sizeof(pal_key_vector_t) + num_kvp * sizeof(pal_key_value_pair_t);
@@ -749,8 +752,7 @@ uint32_t handleSpkrVarFallbck(VehicleDataType vehicledatatype) {
     palKeyVector->kvp[1].key = TAG_MODULE_SPKR_VAR;
     palKeyVector->kvp[1].value = DEFAULT_SPKR_VAR;
 
-    ret = pal_gef_rw_param(PAL_PARAM_ID_UIEFFECT, (void *) palPayload, payload_size,
-                              pal_device, PAL_STREAM_PLAYBACK_BUS, GEF_PARAM_WRITE, NULL);
+    ret = pal_stream_set_param(phandler->pal_stream_handle,PAL_PARAM_ID_UIEFFECT, (void *) palPayload);
 
     if (ret) {
         HAR_PAL_ERR(LOG_TAG,"pal_set_param failed for ASIL Bus: %d\n",ret);
@@ -783,6 +785,7 @@ uint32_t handleSpkrGrpAvailability(VehicleDataType vehicledatatype) {
     pal_awx_data_t* retrievedData = NULL;
     pal_awx_bus_type_t bus_index = BUS_RESERVED;
     pal_device_id_t pal_device = PAL_DEVICE_OUT_SPEAKER;
+    pal_stream_element_t* phandler = NULL;
     int count;
     PlatformAudioDevices audio_device;
 
@@ -790,115 +793,103 @@ uint32_t handleSpkrGrpAvailability(VehicleDataType vehicledatatype) {
 
     HAR_PAL_DBG(LOG_TAG, "%s:key = %s string= %s",__func__,key,vehicledatatype.value.string_data);
 
-    ret = pthread_mutex_lock(&lock);
-    if (ret !=0) {
-       HAR_PAL_ERR(LOG_TAG,": %s pthread_mutex_lock failed", __func__);
-       return ret;
-    } else {
-       isLocked = 1;
+    for (int busid = HAR_PAL_DEVICE_OUT_SPEAKER_WS; busid <= HAR_PAL_DEVICE_OUT_SPEAKER_S_WARN; busid++) {
+        phandler = get_stream_handler(busid);
+        if (phandler != NULL && phandler->pal_stream_handle != NULL) {
+            HAR_PAL_DBG(LOG_TAG, "phandler %p pal_stream_handle %p", phandler, phandler->pal_stream_handle);
+            //breaking for the first active instance of handler because all graph has same awx module.
+            break;
+        }
     }
 
-     uint32_t payload_size = sizeof(pal_param_payload) + sizeof(effect_pal_payload_t) +
-                                    sizeof(pal_effect_custom_payload_t) + sizeof(pal_awx_data_t);
+    if (phandler == NULL || phandler->pal_stream_handle == NULL) {
+        HAR_PAL_ERR(LOG_TAG, "No valid stream handle found");
+        return -1;
+    }
 
-     size_t padBytes = PADDING_8BYTE_ALIGN(payload_size);
+    uint32_t payload_size = sizeof(pal_param_payload) + sizeof(effect_pal_payload_t) +
+                                sizeof(pal_effect_custom_payload_t) + sizeof(pal_awx_data_t);
 
-     if (strcmp(vehicledatatype.key,"SPEAKER_GROUP_AVAILABILITY") == 0) {
+    size_t padBytes = PADDING_8BYTE_ALIGN(payload_size);
+
+    if (strcmp(vehicledatatype.key,"SPEAKER_GROUP_AVAILABILITY") == 0) {
         //allocate memory for payload
         payloadInfo = (uint8_t*) calloc(1, payload_size + padBytes);
         if (!payloadInfo) {
-           HAR_PAL_ERR(LOG_TAG,":%s Memory allocation failure",__func__);
-           ret = pthread_mutex_unlock(&lock);
-           if (ret !=0) {
-              HAR_PAL_ERR(LOG_TAG,":%s pthread_mutex_unlock failed", __func__);
-              return ret;
-           }
-           return -ENOMEM;
-     }
-
-      SpkrGrpAvail *zones = parse_speaker_group_availability(vehicledatatype.value.string_data,&count);
-
-       if (zones) {
-         int bitmask = get_bit_mask(zones, count);
-         if (bitmask == 0) {
-          HAR_PAL_ERR(LOG_TAG,"%s: None of the speaker group available",__func__);
-          status = -1;
-          goto cleanup;
-         } else if (bitmask > 0 && bitmask <= 3) {
-            status = handleSpkrVarFallbck(vehicledatatype);
-         } else {
-            HAR_PAL_INFO(LOG_TAG,"%s:ASIL Bus Routing to Front Group Speaker",__func__);
-         }
-
-         if (status != 0) {
-           HAR_PAL_ERR(LOG_TAG,"Speaker group routing failed for ASIL Bus: %d\n",status);
-         } else {
-           HAR_PAL_INFO(LOG_TAG,"Speaker group routing successful for ASIL Bus");
-         }
-
-        //Creating payload
-        pal_payload = (pal_param_payload*) payloadInfo;
-        effect_payload = (effect_pal_payload_t*) (payloadInfo + sizeof(pal_param_payload));
-        customPayload = (pal_effect_custom_payload_t*) (payloadInfo +
-                  sizeof(pal_param_payload) + sizeof(effect_pal_payload_t));
-
-        pal_payload->payload_size = sizeof(effect_pal_payload_t) +
-                          sizeof(pal_effect_custom_payload_t) + sizeof(pal_awx_data_t);
-
-        effect_payload->isTKV = PARAM_NONTKV;
-
-        effect_payload->tag = TAG_MODULE_CUSTOM_AWX;
-        effect_payload->payloadSize = sizeof(pal_effect_custom_payload_t) + sizeof(pal_awx_data_t);
-        customPayload->paramId = AWX_SPATIALIZATION;
-
-        status = pal_gef_rw_param(PAL_PARAM_ID_UIEFFECT, (void *) pal_payload, payload_size,
-                            pal_device, PAL_STREAM_PLAYBACK_BUS, GEF_PARAM_READ, NULL);
-
-        if (status != 0) {
-           HAR_PAL_ERR(LOG_TAG,"%s: get param failed with error: %d\n",__func__, status);
-           goto cleanup;
+            HAR_PAL_ERR(LOG_TAG,":%s Memory allocation failure",__func__);
+            return -ENOMEM;
         }
 
-        pal_awx_data_t* retrievedData = (pal_awx_data_t*)customPayload->data;
-        int32_t value_VWarn = retrievedData->val[BUS_VWARN_AWX];
-        int32_t value_RoadADAS = retrievedData->val[BUS_VROADADAS_AWX];
-        Spatialization requested_zone_VWARN = int_to_enum(value_VWarn);
-        HAR_PAL_INFO(LOG_TAG, "Requested Zone for VWARN : %s\n",
-                        outcome_zone_to_string(requested_zone_VWARN));
-        Spatialization requested_zone_RoadADAS = int_to_enum(value_RoadADAS);
-        HAR_PAL_INFO(LOG_TAG, "Requested Zone for ROAD-ADAS : %s\n",
-                        outcome_zone_to_string(requested_zone_RoadADAS));
+        SpkrGrpAvail *zones = parse_speaker_group_availability(vehicledatatype.value.string_data,&count);
 
+        if (zones) {
+            int bitmask = get_bit_mask(zones, count);
+            spkr_grp_avail = bitmask; //caching bitmask value
+            if (bitmask == 0) {
+                HAR_PAL_ERR(LOG_TAG,"%s: None of the speaker group available",__func__);
+                status = -1;
+                goto cleanup;
+            } else if (bitmask > 0 && bitmask <= 3) {
+                //0 represents all speakers failed, 1-3 represents Front speakers Failed
+                status = handleSpkrVarFallbck(vehicledatatype);
+            } else {
+                HAR_PAL_INFO(LOG_TAG,"%s:ASIL Bus Routing to Front Group Speaker",__func__);
+            }
 
-        ret = pthread_mutex_unlock(&lock);
-        if (ret !=0) {
-          HAR_PAL_ERR(LOG_TAG,": %s pthread_mutex_unlock failed", __func__);
-          return ret;
+            if (status != 0) {
+                HAR_PAL_ERR(LOG_TAG,"Speaker group routing failed for ASIL Bus: %d\n",status);
+            } else {
+                HAR_PAL_INFO(LOG_TAG,"Speaker group routing successful for ASIL Bus");
+            }
+
+            //Creating payload
+            pal_payload = (pal_param_payload*) payloadInfo;
+            effect_payload = (effect_pal_payload_t*) (payloadInfo + sizeof(pal_param_payload));
+            customPayload = (pal_effect_custom_payload_t*) (payloadInfo +
+                      sizeof(pal_param_payload) + sizeof(effect_pal_payload_t));
+
+            pal_payload->payload_size = sizeof(effect_pal_payload_t) +
+                              sizeof(pal_effect_custom_payload_t) + sizeof(pal_awx_data_t);
+
+            effect_payload->isTKV = PARAM_NONTKV;
+
+            effect_payload->tag = TAG_MODULE_CUSTOM_AWX;
+            effect_payload->payloadSize = sizeof(pal_effect_custom_payload_t) + sizeof(pal_awx_data_t);
+            customPayload->paramId = AWX_SPATIALIZATION;
+
+            status = pal_stream_get_param(phandler->pal_stream_handle,PAL_PARAM_ID_UIEFFECT, (void *) pal_payload);
+
+            if (status != 0) {
+               HAR_PAL_ERR(LOG_TAG,"%s: get param failed with error: %d\n",__func__, status);
+               goto cleanup;
+            }
+
+            pal_awx_data_t* retrievedData = (pal_awx_data_t*)customPayload->data;
+            int32_t value_VWarn = retrievedData->val[BUS_VWARN_AWX];
+            int32_t value_RoadADAS = retrievedData->val[BUS_VROADADAS_AWX];
+
+            Spatialization requested_zone_VWARN = int_to_enum(value_VWarn);
+            HAR_PAL_INFO(LOG_TAG, "Requested Zone for VWARN : %s\n",
+                            outcome_zone_to_string(requested_zone_VWARN));
+            audio_device = load_default_config("WARN");
+            status = set_spatialization(&audio_device, requested_zone_VWARN);
+
+            Spatialization requested_zone_RoadADAS = int_to_enum(value_RoadADAS);
+            HAR_PAL_INFO(LOG_TAG, "Requested Zone for ROAD-ADAS : %s\n",
+                            outcome_zone_to_string(requested_zone_RoadADAS));
+
+            audio_device = load_default_config("ROAD-ADAS");
+            status = set_spatialization(&audio_device, requested_zone_RoadADAS);
         } else {
-           isLocked = 0;
-        }
-
-        Spatialization outcome_VWARN = MAPPING_TABLE[bitmask][get_column_index(requested_zone_VWARN)];
-        HAR_PAL_INFO(LOG_TAG, "Outcome Zone for VWARN :%d, %s\n",
-                         outcome_VWARN, outcome_zone_to_string(outcome_VWARN));
-        audio_device = load_default_config("WARN");
-        status = set_spatialization(&audio_device, outcome_VWARN);
-
-        Spatialization outcome_RoadADAS = MAPPING_TABLE[bitmask][get_column_index(requested_zone_RoadADAS)];
-        HAR_PAL_INFO(LOG_TAG, "Outcome Zone for ROAD-ADAS:%d, %s\n",
-                         outcome_RoadADAS, outcome_zone_to_string(outcome_RoadADAS));
-        audio_device = load_default_config("ROAD-ADAS");
-        status = set_spatialization(&audio_device, outcome_RoadADAS);
-       } else {
             HAR_PAL_ERR(LOG_TAG,"list empty");
             status = -1;
             goto cleanup;
-       }
-     } else {
-         HAR_PAL_ERR(LOG_TAG,"Unknown VehicleDataType");
-         status = -1;
-         goto cleanup;
-     }
+        }
+    } else {
+        HAR_PAL_ERR(LOG_TAG,"Unknown VehicleDataType");
+        status = -1;
+        goto cleanup;
+    }
 
 cleanup:
     if (payloadInfo) {
@@ -908,14 +899,6 @@ cleanup:
     pal_payload = NULL;
     effect_payload = NULL;
     customPayload = NULL;
-
-    if (isLocked){
-        ret = pthread_mutex_unlock(&lock);
-        if (ret !=0) {
-            HAR_PAL_ERR(LOG_TAG," %s pthread_mutex_unlock failed", __func__);
-            return ret;
-        }
-     }
 
     if (status != 0) {
         HAR_PAL_ERR(LOG_TAG,"Speaker group routing failed with error: %d\n", status);
@@ -1588,11 +1571,11 @@ ssize_t try_play_bytes(PlatformAudioDevices *har_device, void *buffer, int bytes
     ssize_t ret = 0;
     int err;
     struct pal_buffer palBuffer;
-    pal_stream_element_t* stream_handler = NULL;
-    err = pthread_mutex_lock(&lock);
-    if (err !=0) {
-      HAR_PAL_ERR(LOG_TAG,"%s pthread_mutex_lock failed", __func__);
-      return err;
+    pal_stream_element_t* stream_handler = get_stream_handler(har_device->device_id);
+
+    if (!stream_handler || !stream_handler->pal_stream_handle) {
+        HAR_PAL_ERR(LOG_TAG, "%s: Invalid stream handler", __func__);
+        return -EINVAL;
     }
 
     memset(&palBuffer, 0, sizeof(struct pal_buffer));
@@ -1601,31 +1584,7 @@ ssize_t try_play_bytes(PlatformAudioDevices *har_device, void *buffer, int bytes
     palBuffer.offset = 0;
 
     HAR_PAL_VERBOSE(LOG_TAG, "%s Buffer Size = %d for device id=%d", __func__, bytes, har_device->device_id);
-    stream_handler = get_stream_handler(har_device->device_id);
-    if (stream_handler == NULL) {
-        ret = -1;
-        HAR_PAL_ERR(LOG_TAG,": %s pal_stream_handle is NULL", __func__);
-        err = pthread_mutex_unlock(&lock);
-        if (err !=0) {
-            HAR_PAL_ERR(LOG_TAG,"%s pthread_mutex_lock failed", __func__);
-            return err;
-          }
-        return ret;
-    } else {
-        if(get_agm_status()) {
-            HAR_PAL_ERR(LOG_TAG,"%s: Agm is crashed.",__func__);
-            ret = -EINVAL;
-            goto exit;
-        }
-        ret = pal_stream_write(stream_handler->pal_stream_handle, &palBuffer);
-    }
-exit:
-    err = pthread_mutex_unlock(&lock);
-    if (err !=0) {
-      HAR_PAL_ERR(LOG_TAG,"HAR_PAL: %s pthread_mutex_unlock failed", __func__);
-      return err;
-    }
-
+    ret = pal_stream_write(stream_handler->pal_stream_handle, &palBuffer);
     HAR_PAL_VERBOSE(LOG_TAG,"%s.Bytes Accepted = %d",__func__, ret);
     return ret;
 }
@@ -1636,8 +1595,10 @@ exit:
 int32_t set_volume(PlatformAudioDevices *har_device, float volume)
 {
     int ret = 0;
+    int status = 0;
     uint32_t channels = HAR_AUDIO_CHANNELS_2;
     pal_stream_element_t* stream_handler = NULL;
+    struct pal_volume_data* volume_data = NULL;
 
     HAR_PAL_DBG(LOG_TAG,"%s.Enter, volume = %f for device id=%d",__func__, volume, har_device->device_id);
     if (har_device != NULL) {
@@ -1646,15 +1607,6 @@ int32_t set_volume(PlatformAudioDevices *har_device, float volume)
             channels = har_device->channels;
             HAR_PAL_VERBOSE(LOG_TAG, "audioChannels = %d", channels);
         }
-    } else {
-        HAR_PAL_ERR(LOG_TAG,"har_device is NULL\n");
-        return -1;
-    }
-
-    ret = pthread_mutex_lock(&lock);
-    if (ret !=0) {
-      HAR_PAL_ERR(LOG_TAG," %s pthread_mutex_lock failed", __func__);
-      return ret;
     }
 
     if (volume) {
@@ -1663,11 +1615,6 @@ int32_t set_volume(PlatformAudioDevices *har_device, float volume)
                                                      pal_channel_vol_kv)));
        if (volume_data == NULL) {
            HAR_PAL_ERR(LOG_TAG,"Unable to set volume");
-           ret = pthread_mutex_unlock(&lock);
-           if (ret !=0) {
-             HAR_PAL_ERR(LOG_TAG,": %s pthread_mutex_unlock failed", __func__);
-             return ret;
-           }
            return -1;
        } else {
             if (channels == 1) {
@@ -1682,33 +1629,26 @@ int32_t set_volume(PlatformAudioDevices *har_device, float volume)
                 volume_data->volume_pair[1].vol = volume;
             }
             stream_handler = get_stream_handler(har_device->device_id);
-            if (stream_handler == NULL) {
-                ret = -1;
-                HAR_PAL_ERR(LOG_TAG,"%s no stream for device %d", __func__, har_device->device_id);
-                free(volume_data);
-                volume_data = NULL;
-                pthread_mutex_unlock(&lock);
-                return ret;
-            } else {
-                if (!get_agm_status()) {
-                    ret = pal_stream_set_volume(stream_handler->pal_stream_handle, volume_data);
-                }
+
+            if (!stream_handler || !stream_handler->pal_stream_handle) {
+               HAR_PAL_ERR(LOG_TAG, "%s: Invalid stream handler", __func__);
+               free(volume_data);
+               return -EINVAL;
             }
-            if (ret) {
-                HAR_PAL_ERR(LOG_TAG,"Pal Stream volume Error (%x)", ret);
-            }
+            status = pal_stream_set_volume(stream_handler->pal_stream_handle, volume_data);
+
             free(volume_data);
-            volume_data = NULL;
        }
     }
-    ret = pthread_mutex_unlock(&lock);
-    if (ret !=0) {
-      HAR_PAL_ERR(LOG_TAG,": %s pthread_mutex_unlock failed", __func__);
-      return ret;
+
+    if (status != 0) {
+        HAR_PAL_ERR(LOG_TAG,"Error setting volume with error: %d\n", status);
+    } else {
+        HAR_PAL_INFO(LOG_TAG,"Set Volume successful");
     }
 
-    HAR_PAL_DBG(LOG_TAG,"%s.Exit ret %d",__func__, ret);
-    return ret;
+    return status;
+
 }
 
 /*C implementation of close() API from Harry.
@@ -1719,29 +1659,22 @@ int32_t StopAndCloseUsecase(PlatformAudioDevices *har_device)
     int32_t status = 0;
     int ret = 0;
     int err;
-    pal_stream_element_t* stream_handler = NULL;
+    pal_stream_element_t* stream_handler = get_stream_handler(har_device->device_id);
+
+    if (!stream_handler || !stream_handler->pal_stream_handle) {
+        HAR_PAL_ERR(LOG_TAG, "%s: No stream handler for device %d", __func__, har_device->device_id);
+        return -1;
+    }
+
     ret = pthread_mutex_lock(&lock);
     if (ret !=0) {
       HAR_PAL_ERR(LOG_TAG,": %s pthread_mutex_lock failed", __func__);
       return ret;
     }
-    place_markers("kpi_value close_device enter");
-    HAR_PAL_DBG(LOG_TAG,"%s.Enter for device id %d",__func__,har_device->device_id);
-    stream_handler = get_stream_handler(har_device->device_id);
-    if (stream_handler == NULL) {
-        ret = -1;
-        HAR_PAL_ERR(LOG_TAG," %s no stream for device %d", __func__, har_device->device_id);
-        err = pthread_mutex_unlock(&lock);
-        if (err !=0) {
-            HAR_PAL_ERR(LOG_TAG,"%s pthread_mutex_lock failed", __func__);
-            return err;
-        }
-        return ret;
-    } else {
-        HAR_PAL_DBG(LOG_TAG, "%s:pal_stream_handle = %p",__func__,stream_handler->pal_stream_handle);
-        if(!get_agm_status()) {
-            status = pal_stream_stop(stream_handler->pal_stream_handle);
-        }
+
+    HAR_PAL_DBG(LOG_TAG, "%s: Closing stream handle %p", __func__, stream_handler->pal_stream_handle);
+    if (stream_handler->pal_stream_handle) {
+        status = pal_stream_stop(stream_handler->pal_stream_handle);
         if (status) {
            HAR_PAL_ERR(LOG_TAG,"pal_stream_stop failed");
         }
@@ -1755,13 +1688,13 @@ int32_t StopAndCloseUsecase(PlatformAudioDevices *har_device)
 
         stream_started = 0;
         stream_handler->pal_stream_handle = NULL;
-        stream_handler = NULL;
     }
     ret = pthread_mutex_unlock(&lock);
     if (ret !=0) {
       HAR_PAL_ERR(LOG_TAG,"%s pthread_mutex_unlock failed", __func__);
       return ret;
     }
+    stream_handler = NULL;
 
     HAR_PAL_DBG(LOG_TAG,"%s.Exit",__func__);
     place_markers("kpi_value close_device exit");
@@ -1769,7 +1702,7 @@ int32_t StopAndCloseUsecase(PlatformAudioDevices *har_device)
 }
 
 /*C implementation of set_spatialization() API from Harry.
- *Further creates payload for spatialization and calls pal_gef_rw_param.
+ *Further creates payload for spatialization and calls pal_stream_set_param.
  */
 uint32_t set_spatialization(PlatformAudioDevices *har_device, Spatialization value) {
 
@@ -1783,20 +1716,34 @@ uint32_t set_spatialization(PlatformAudioDevices *har_device, Spatialization val
     pal_awx_data_t* spt_data = NULL;
     pal_awx_bus_type_t bus_index = BUS_RESERVED;
     pal_device_id_t pal_device = PAL_DEVICE_OUT_SPEAKER;
+    pal_stream_element_t* phandler = NULL;
+    Spatialization new_value = value;
 
-    if (har_device) {
-        if (har_device->bus_address[0] !='\0') {
-            strlcpy(bus_addr, har_device->bus_address,MAX_ADDRESS_LEN);
-
-        } else {
-            HAR_PAL_ERR(LOG_TAG, "%s : Invalid bus address",__func__);
-            goto cleanup;
-        }
+    if(!spkr_grp_avail) {
+        HAR_PAL_ERR(LOG_TAG, "%s: speaker group unavailable ", __func__);
+        return -EINVAL;
     }
+
+    if (!har_device || har_device->bus_address[0] == '\0') {
+        HAR_PAL_ERR(LOG_TAG, "%s: Invalid bus address", __func__);
+        return -EINVAL;
+    }
+
+    strlcpy(bus_addr, har_device->bus_address, MAX_ADDRESS_LEN);
 
     //checking for AWX bus
     int is_awx_bus = checkIfAWXBus(bus_addr, &bus_index) && bus_index != BUS_RESERVED;
 
+    phandler = get_stream_handler(har_device->device_id);
+    if (!phandler || !phandler->pal_stream_handle) {
+        HAR_PAL_ERR(LOG_TAG, "%s: No valid stream handler", __func__);
+        return -EINVAL;
+    }
+
+    if (phandler == &asil_handler) {
+        HAR_PAL_DBG(LOG_TAG, "skip spatialization for ASIL Bus");
+        return -1;
+    }
     //calculate payload_size
     uint32_t payload_size = sizeof(pal_param_payload) + sizeof(effect_pal_payload_t) +
                               sizeof(pal_effect_custom_payload_t) + sizeof(pal_awx_data_t);
@@ -1805,6 +1752,18 @@ uint32_t set_spatialization(PlatformAudioDevices *har_device, Spatialization val
     if (value < FrontCenter || value > Left) {
         HAR_PAL_VERBOSE(LOG_TAG, "%s: Setting default value", __func__);
         value = FrontCenter;
+    }
+
+    if(spkr_grp_avail != HAR_SPKR_AVAIL_ALL) {
+        Spatialization new_value = MAPPING_TABLE[spkr_grp_avail][get_column_index(value)];
+        HAR_PAL_INFO(LOG_TAG, "new Spatialization value :%d, %s\n",
+                        new_value, outcome_zone_to_string(new_value));
+    }
+
+    if (new_value != value) {
+        HAR_PAL_ERR(LOG_TAG, "%s Speaker group not available routing to %s\n",
+                        outcome_zone_to_string(value), outcome_zone_to_string(new_value));
+        value = new_value;
     }
 
     HAR_PAL_DBG(LOG_TAG,"%s:Spatialization= %d,bus_addr= %s,awx_bus= %d,bus_idx= %d,payloadsize=%d",
@@ -1817,21 +1776,10 @@ uint32_t set_spatialization(PlatformAudioDevices *har_device, Spatialization val
 
     size_t padBytes = PADDING_8BYTE_ALIGN(payload_size);
 
-    ret = pthread_mutex_lock(&lock);
-    if (ret !=0) {
-      HAR_PAL_ERR(LOG_TAG,"HAR_PAL: %s pthread_mutex_lock failed", __func__);
-      return ret;
-    }
-
     //allocate memory for payload
     payloadInfo = (uint8_t*) calloc(1, payload_size + padBytes);
     if (!payloadInfo) {
         HAR_PAL_ERR(LOG_TAG,": %s Memory allocation failure",__func__);
-        ret = pthread_mutex_unlock(&lock);
-        if (ret !=0) {
-           HAR_PAL_ERR(LOG_TAG,": %s pthread_mutex_unlock failed", __func__);
-           return ret;
-         }
         return -ENOMEM;
     }
 
@@ -1846,8 +1794,6 @@ uint32_t set_spatialization(PlatformAudioDevices *har_device, Spatialization val
 
     effect_payload->isTKV = PARAM_NONTKV;
 
-    // check for AWX BUS to handle spatialization appropriately
-    if (is_awx_bus) {
         effect_payload->tag = TAG_MODULE_CUSTOM_AWX;
         effect_payload->payloadSize = sizeof(pal_effect_custom_payload_t) + sizeof(pal_awx_data_t);
         customPayload->paramId = AWX_SPATIALIZATION;
@@ -1861,16 +1807,10 @@ uint32_t set_spatialization(PlatformAudioDevices *har_device, Spatialization val
                   is_awx_bus,
                   customPayload->paramId,
                   effect_payload->tag);
-    } else {
-        HAR_PAL_INFO(LOG_TAG, "Skip Spatialization for bus_addr = %s", bus_addr);
-        goto cleanup;
-    }
 
     if (!get_agm_status()) {
-        status = pal_gef_rw_param(PAL_PARAM_ID_UIEFFECT, (void *) pal_payload, payload_size,
-                                pal_device, PAL_STREAM_PLAYBACK_BUS, GEF_PARAM_WRITE, NULL);
+        status = pal_stream_set_param(phandler->pal_stream_handle,PAL_PARAM_ID_UIEFFECT, (void *) pal_payload);
     }
-cleanup:
     if (payloadInfo) {
         free(payloadInfo);
         payloadInfo = NULL;
@@ -1879,11 +1819,6 @@ cleanup:
     effect_payload = NULL;
     customPayload = NULL;
     spt_data = NULL;
-    ret = pthread_mutex_unlock(&lock);
-    if (ret !=0) {
-      HAR_PAL_ERR(LOG_TAG,": %s pthread_mutex_unlock failed", __func__);
-      return ret;
-    }
 
     if (status != 0) {
         HAR_PAL_ERR(LOG_TAG,"Error setting spatialization with error: %d\n", status);

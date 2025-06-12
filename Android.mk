@@ -19,7 +19,7 @@ LOCAL_MODULE_OWNER := qti
 LOCAL_MODULE_TAGS := optional
 LOCAL_VENDOR_MODULE := true
 
-LOCAL_SRC_FILES:=  harry_pal_main.c
+LOCAL_SRC_FILES:=  src/harry_pal_main.c
 
 LOCAL_CFLAGS        := -D_ANDROID_
 LOCAL_CFLAGS        += -Wall -Werror -Wno-unused-function -Wno-unused-variable
@@ -57,7 +57,7 @@ LOCAL_C_INCLUDES     += $(TOP)/external/expat/lib/expat.h
 LOCAL_CFLAGS += -Wno-tautological-compare
 LOCAL_CFLAGS += -Wno-macro-redefined
 
-LOCAL_SRC_FILES  := harry_pal_test.c
+LOCAL_SRC_FILES  := test/harry_pal_test.c
 
 LOCAL_MODULE               := HarPalTest
 LOCAL_MODULE_OWNER         := qti

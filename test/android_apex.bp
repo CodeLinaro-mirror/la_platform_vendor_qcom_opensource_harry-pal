@@ -1,0 +1,1118 @@
+cc_prebuilt_library_shared {
+    name: "libhar-pal_apex",
+    stem: "libhar-pal",
+    overrides: [
+        "libhar-pal",
+    ],
+    arch: {
+        arm: {
+            enabled: false,
+        },
+        arm64: {
+            srcs: ["lib64/libhar-pal.so"],
+        },
+        x86: {
+            enabled: false,
+        },
+        x86_64: {
+            enabled: false,
+        },
+    },
+
+    shared_libs: [
+        "libaudioroute",
+        "libaudioutils",
+        "libcutils",
+        "libutils",
+        "libc++",
+        "libc",
+        "libm",
+        "libdl",
+        "libexpat",
+        "liblog",
+        "libion",
+        "libutilscallstack",
+        "libhidlbase",
+        "libbase",
+        "libvndksupport",
+        "libunwindstack",
+        "libbinder_ndk",
+        "liblzma",
+        "libz",
+        "android.hardware.common-V2-ndk",
+        "libapexsupport",
+        "libtinyalsa",
+        // dlopen dependencies
+        "libjson_apex",
+        "libar-pal_apex",
+        "libar-gsl_apex",
+        "liblx-osal_apex",
+        "libdiag_apex",
+        "vendor.qti.hardware.agm-V1-ndk_apex",
+        "libagmclient_apex",
+        "libpdmapper_apex",
+        "libpdnotifier_apex",
+        "libar-acdb_apex",
+        "liblx-ar_util_apex",
+        "libar-gpr_apex",
+        "libqti-tinycompress_apex",
+        "libqmi_cci_apex",
+        "libqmi_common_so_apex",
+        "libqmi_encdec_apex",
+        "libagm_pcm_plugin_apex",
+        "libagm_mixer_plugin_apex",
+        "libsndcardparser_apex",
+        "libaudio_log_utils_apex",
+        "lib_oem_plugin_controls_apex",
+        "lib_default_plugin_controls_apex",
+        "libar-gsl_fe_apex",
+        "libvui_intf_apex",
+        "libarmemlog_apex",
+        "libdev_speaker_apex",
+        "libstream_pcm_apex",
+        "libsession_pcm_apex",
+        "libagmsocket_apex",
+        "libagmsocket_client_apex",
+        "libsession_ar_apex",
+        "libtinycompress_apex",
+    ],
+
+    strip: {
+        none: true,
+    },
+
+    owner: "qcom",
+
+    apex_available: [
+        "//apex_available:platform",
+        "//apex_available:anyapex",
+    ],
+
+    product_specific: true,
+    vendor_available: true,
+}
+
+cc_prebuilt_library_shared {
+    name: "libdev_speaker_apex",
+    stem: "libdev_speaker",
+    overrides: [
+        "libdev_speaker",
+    ],
+    arch: {
+        arm: {
+            enabled: false,
+        },
+        arm64: {
+            srcs: ["lib64/libdev_speaker.so"],
+        },
+        x86: {
+            enabled: false,
+        },
+        x86_64: {
+            enabled: false,
+        },
+    },
+    strip: {
+        none: true,
+    },
+    owner: "qcom",
+    apex_available: [
+        "//apex_available:platform",
+        "//apex_available:anyapex",
+    ],
+    product_specific: true,
+    vendor_available: true,
+}
+
+cc_prebuilt_library_shared {
+    name: "libagmsocket_client_apex",
+    stem: "libagmsocket_client",
+    overrides: [
+        "libagmsocket_client",
+    ],
+    arch: {
+        arm: {
+            enabled: false,
+        },
+        arm64: {
+            srcs: ["lib64/libagmsocket_client.so"],
+        },
+        x86: {
+            enabled: false,
+        },
+        x86_64: {
+            enabled: false,
+        },
+    },
+    strip: {
+        none: true,
+    },
+    owner: "qcom",
+    apex_available: [
+        "//apex_available:platform",
+        "//apex_available:anyapex",
+    ],
+    product_specific: true,
+    vendor_available: true,
+}
+
+cc_prebuilt_library_shared {
+    name: "libsession_ar_apex",
+    stem: "libsession_ar",
+    overrides: [
+        "libsession_ar",
+    ],
+    arch: {
+        arm: {
+            enabled: false,
+        },
+        arm64: {
+            srcs: ["lib64/libsession_ar.so"],
+        },
+        x86: {
+            enabled: false,
+        },
+        x86_64: {
+            enabled: false,
+        },
+    },
+    strip: {
+        none: true,
+    },
+    owner: "qcom",
+    apex_available: [
+        "//apex_available:platform",
+        "//apex_available:anyapex",
+    ],
+    product_specific: true,
+    vendor_available: true,
+}
+
+cc_prebuilt_library_shared {
+    name: "libtinycompress_apex",
+    stem: "libtinycompress",
+    overrides: [
+        "libtinycompress",
+    ],
+    arch: {
+        arm: {
+            enabled: false,
+        },
+        arm64: {
+            srcs: ["lib64/libtinycompress.so"],
+        },
+        x86: {
+            enabled: false,
+        },
+        x86_64: {
+            enabled: false,
+        },
+    },
+    strip: {
+        none: true,
+    },
+    owner: "qcom",
+    apex_available: [
+        "//apex_available:platform",
+        "//apex_available:anyapex",
+    ],
+    product_specific: true,
+    vendor_available: true,
+}
+
+cc_prebuilt_library_shared {
+    name: "libagmsocket_apex",
+    stem: "libagmsocket",
+    overrides: [
+        "libagmsocket",
+    ],
+    arch: {
+        arm: {
+            enabled: false,
+        },
+        arm64: {
+            srcs: ["lib64/libagmsocket.so"],
+        },
+        x86: {
+            enabled: false,
+        },
+        x86_64: {
+            enabled: false,
+        },
+    },
+    strip: {
+        none: true,
+    },
+    owner: "qcom",
+    apex_available: [
+        "//apex_available:platform",
+        "//apex_available:anyapex",
+    ],
+    product_specific: true,
+    vendor_available: true,
+}
+
+cc_prebuilt_library_shared {
+    name: "libstream_pcm_apex",
+    stem: "libstream_pcm",
+    overrides: [
+        "libstream_pcm",
+    ],
+    arch: {
+        arm: {
+            enabled: false,
+        },
+        arm64: {
+            srcs: ["lib64/libstream_pcm.so"],
+        },
+        x86: {
+            enabled: false,
+        },
+        x86_64: {
+            enabled: false,
+        },
+    },
+    strip: {
+        none: true,
+    },
+    owner: "qcom",
+    apex_available: [
+        "//apex_available:platform",
+        "//apex_available:anyapex",
+    ],
+    product_specific: true,
+    vendor_available: true,
+}
+
+cc_prebuilt_library_shared {
+    name: "libsession_pcm_apex",
+    stem: "libsession_pcm",
+    overrides: [
+        "libsession_pcm",
+    ],
+    arch: {
+        arm: {
+            enabled: false,
+        },
+        arm64: {
+            srcs: ["lib64/libsession_pcm.so"],
+        },
+        x86: {
+            enabled: false,
+        },
+        x86_64: {
+            enabled: false,
+        },
+    },
+    strip: {
+        none: true,
+    },
+    owner: "qcom",
+    apex_available: [
+        "//apex_available:platform",
+        "//apex_available:anyapex",
+    ],
+    product_specific: true,
+    vendor_available: true,
+}
+
+cc_prebuilt_library_shared {
+    name: "libvui_intf_apex",
+    stem: "libvui_intf",
+    overrides: [
+        "libvui_intf",
+    ],
+    arch: {
+        arm: {
+            enabled: false,
+        },
+        arm64: {
+            srcs: ["lib64/libvui_intf.so"],
+        },
+        x86: {
+            enabled: false,
+        },
+        x86_64: {
+            enabled: false,
+        },
+    },
+    strip: {
+        none: true,
+    },
+    owner: "qcom",
+    apex_available: [
+        "//apex_available:platform",
+        "//apex_available:anyapex",
+    ],
+    product_specific: true,
+    vendor_available: true,
+}
+
+cc_prebuilt_library_shared {
+    name: "libarmemlog_apex",
+    stem: "libarmemlog",
+    overrides: [
+        "libarmemlog",
+    ],
+    arch: {
+        arm: {
+            enabled: false,
+        },
+        arm64: {
+            srcs: ["lib64/libarmemlog.so"],
+        },
+        x86: {
+            enabled: false,
+        },
+        x86_64: {
+            enabled: false,
+        },
+    },
+    strip: {
+        none: true,
+    },
+    owner: "qcom",
+    apex_available: [
+        "//apex_available:platform",
+        "//apex_available:anyapex",
+    ],
+    product_specific: true,
+    vendor_available: true,
+}
+
+cc_prebuilt_library_shared {
+    name: "libar-gsl_fe_apex",
+    stem: "libar-gsl_fe",
+    overrides: [
+        "libar-gsl_fe",
+    ],
+    arch: {
+        arm: {
+            enabled: false,
+        },
+        arm64: {
+            srcs: ["lib64/libar-gsl_fe.so"],
+        },
+        x86: {
+            enabled: false,
+        },
+        x86_64: {
+            enabled: false,
+        },
+    },
+    strip: {
+        none: true,
+    },
+    owner: "qcom",
+    apex_available: [
+        "//apex_available:platform",
+        "//apex_available:anyapex",
+    ],
+    product_specific: true,
+    vendor_available: true,
+}
+
+cc_prebuilt_library_shared {
+    name: "lib_oem_plugin_controls_apex",
+    stem: "lib_oem_plugin_controls",
+    overrides: [
+        "lib_oem_plugin_controls",
+    ],
+    arch: {
+        arm: {
+            enabled: false,
+        },
+        arm64: {
+            srcs: ["lib64/lib_oem_plugin_controls.so"],
+        },
+        x86: {
+            enabled: false,
+        },
+        x86_64: {
+            enabled: false,
+        },
+    },
+    strip: {
+        none: true,
+    },
+    owner: "qcom",
+    apex_available: [
+        "//apex_available:platform",
+        "//apex_available:anyapex",
+    ],
+    product_specific: true,
+    vendor_available: true,
+}
+
+cc_prebuilt_library_shared {
+    name: "lib_default_plugin_controls_apex",
+    stem: "lib_default_plugin_controls",
+    overrides: [
+        "lib_default_plugin_controls",
+    ],
+    arch: {
+        arm: {
+            enabled: false,
+        },
+        arm64: {
+            srcs: ["lib64/lib_default_plugin_controls.so"],
+        },
+        x86: {
+            enabled: false,
+        },
+        x86_64: {
+            enabled: false,
+        },
+    },
+    strip: {
+        none: true,
+    },
+    owner: "qcom",
+    apex_available: [
+        "//apex_available:platform",
+        "//apex_available:anyapex",
+    ],
+    product_specific: true,
+    vendor_available: true,
+}
+
+cc_prebuilt_library_shared {
+    name: "libagm_pcm_plugin_apex",
+    stem: "libagm_pcm_plugin",
+    overrides: [
+        "libagm_pcm_plugin",
+    ],
+    arch: {
+        arm: {
+            enabled: false,
+        },
+        arm64: {
+            srcs: ["lib64/libagm_pcm_plugin.so"],
+        },
+        x86: {
+            enabled: false,
+        },
+        x86_64: {
+            enabled: false,
+        },
+    },
+    strip: {
+        none: true,
+    },
+    owner: "qcom",
+    apex_available: [
+        "//apex_available:platform",
+        "//apex_available:anyapex",
+    ],
+    product_specific: true,
+    vendor_available: true,
+}
+
+cc_prebuilt_library_shared {
+    name: "libagm_mixer_plugin_apex",
+    stem: "libagm_mixer_plugin",
+    overrides: [
+        "libagm_mixer_plugin",
+    ],
+    arch: {
+        arm: {
+            enabled: false,
+        },
+        arm64: {
+            srcs: ["lib64/libagm_mixer_plugin.so"],
+        },
+        x86: {
+            enabled: false,
+        },
+        x86_64: {
+            enabled: false,
+        },
+    },
+    strip: {
+        none: true,
+    },
+    owner: "qcom",
+    apex_available: [
+        "//apex_available:platform",
+        "//apex_available:anyapex",
+    ],
+    product_specific: true,
+    vendor_available: true,
+}
+
+cc_prebuilt_library_shared {
+    name: "libsndcardparser_apex",
+    stem: "libsndcardparser",
+    overrides: [
+        "libsndcardparser",
+    ],
+    arch: {
+        arm: {
+            enabled: false,
+        },
+        arm64: {
+            srcs: ["lib64/libsndcardparser.so"],
+        },
+        x86: {
+            enabled: false,
+        },
+        x86_64: {
+            enabled: false,
+        },
+    },
+    strip: {
+        none: true,
+    },
+    owner: "qcom",
+    apex_available: [
+        "//apex_available:platform",
+        "//apex_available:anyapex",
+    ],
+    product_specific: true,
+    vendor_available: true,
+}
+
+cc_prebuilt_library_shared {
+    name: "libaudio_log_utils_apex",
+    stem: "libaudio_log_utils",
+    overrides: [
+        "libaudio_log_utils",
+    ],
+    arch: {
+        arm: {
+            enabled: false,
+        },
+        arm64: {
+            srcs: ["lib64/libaudio_log_utils.so"],
+        },
+        x86: {
+            enabled: false,
+        },
+        x86_64: {
+            enabled: false,
+        },
+    },
+    strip: {
+        none: true,
+    },
+    owner: "qcom",
+    apex_available: [
+        "//apex_available:platform",
+        "//apex_available:anyapex",
+    ],
+    product_specific: true,
+    vendor_available: true,
+}
+
+cc_prebuilt_library_shared {
+    name: "libjson_apex",
+    stem: "libjson",
+    overrides: [
+        "libjson",
+    ],
+    arch: {
+        arm: {
+            enabled: false,
+        },
+        arm64: {
+            srcs: ["lib64/libjson.so"],
+        },
+        x86: {
+            enabled: false,
+        },
+        x86_64: {
+            enabled: false,
+        },
+    },
+    strip: {
+        none: true,
+    },
+    owner: "qcom",
+    apex_available: [
+        "//apex_available:platform",
+        "//apex_available:anyapex",
+    ],
+    product_specific: true,
+    vendor_available: true,
+}
+
+cc_prebuilt_library_shared {
+    name: "libar-pal_apex",
+    stem: "libar-pal",
+    overrides: [
+        "libar-pal",
+    ],
+    arch: {
+        arm: {
+            enabled: false,
+        },
+        arm64: {
+            srcs: ["lib64/libar-pal.so"],
+        },
+        x86: {
+            enabled: false,
+        },
+        x86_64: {
+            enabled: false,
+        },
+    },
+    strip: {
+        none: true,
+    },
+    owner: "qcom",
+    apex_available: [
+        "//apex_available:platform",
+        "//apex_available:anyapex",
+    ],
+    product_specific: true,
+    vendor_available: true,
+}
+
+cc_prebuilt_library_shared {
+    name: "libar-gsl_apex",
+    stem: "libar-gsl",
+    overrides: [
+        "libar-gsl",
+    ],
+    arch: {
+        arm: {
+            enabled: false,
+        },
+        arm64: {
+            srcs: ["lib64/libar-gsl.so"],
+        },
+        x86: {
+            enabled: false,
+        },
+        x86_64: {
+            enabled: false,
+        },
+    },
+    strip: {
+        none: true,
+    },
+    owner: "qcom",
+    apex_available: [
+        "//apex_available:platform",
+        "//apex_available:anyapex",
+    ],
+    product_specific: true,
+    vendor_available: true,
+}
+
+cc_prebuilt_library_shared {
+    name: "liblx-osal_apex",
+    stem: "liblx-osal",
+    overrides: [
+        "liblx-osal",
+    ],
+    arch: {
+        arm: {
+            enabled: false,
+        },
+        arm64: {
+            srcs: ["lib64/liblx-osal.so"],
+        },
+        x86: {
+            enabled: false,
+        },
+        x86_64: {
+            enabled: false,
+        },
+    },
+    strip: {
+        none: true,
+    },
+    owner: "qcom",
+    apex_available: [
+        "//apex_available:platform",
+        "//apex_available:anyapex",
+    ],
+    product_specific: true,
+    vendor_available: true,
+}
+
+cc_prebuilt_library_shared {
+    name: "libdiag_apex",
+    stem: "libdiag",
+    overrides: [
+        "libdiag",
+    ],
+    arch: {
+        arm: {
+            enabled: false,
+        },
+        arm64: {
+            srcs: ["lib64/libdiag.so"],
+        },
+        x86: {
+            enabled: false,
+        },
+        x86_64: {
+            enabled: false,
+        },
+    },
+    strip: {
+        none: true,
+    },
+    owner: "qcom",
+    apex_available: [
+        "//apex_available:platform",
+        "//apex_available:anyapex",
+    ],
+    product_specific: true,
+    vendor_available: true,
+}
+
+cc_prebuilt_library_shared {
+    name: "vendor.qti.hardware.agm-V1-ndk_apex",
+    stem: "vendor.qti.hardware.agm-V1-ndk",
+    overrides: [
+        "vendor.qti.hardware.agm-V1-ndk",
+    ],
+    arch: {
+        arm: {
+            enabled: false,
+        },
+        arm64: {
+            srcs: ["lib64/vendor.qti.hardware.agm-V1-ndk.so"],
+        },
+        x86: {
+            enabled: false,
+        },
+        x86_64: {
+            enabled: false,
+        },
+    },
+    strip: {
+        none: true,
+    },
+    owner: "qcom",
+    apex_available: [
+        "//apex_available:platform",
+        "//apex_available:anyapex",
+    ],
+    product_specific: true,
+    vendor_available: true,
+}
+
+cc_prebuilt_library_shared {
+    name: "libagmclient_apex",
+    stem: "libagmclient",
+    overrides: [
+        "libagmclient",
+    ],
+    arch: {
+        arm: {
+            enabled: false,
+        },
+        arm64: {
+            srcs: ["lib64/libagmclient.so"],
+        },
+        x86: {
+            enabled: false,
+        },
+        x86_64: {
+            enabled: false,
+        },
+    },
+    strip: {
+        none: true,
+    },
+    owner: "qcom",
+    apex_available: [
+        "//apex_available:platform",
+        "//apex_available:anyapex",
+    ],
+    product_specific: true,
+    vendor_available: true,
+}
+
+cc_prebuilt_library_shared {
+    name: "libpdmapper_apex",
+    stem: "libpdmapper",
+    overrides: [
+        "libpdmapper",
+    ],
+    arch: {
+        arm: {
+            enabled: false,
+        },
+        arm64: {
+            srcs: ["lib64/libpdmapper.so"],
+        },
+        x86: {
+            enabled: false,
+        },
+        x86_64: {
+            enabled: false,
+        },
+    },
+    strip: {
+        none: true,
+    },
+    owner: "qcom",
+    apex_available: [
+        "//apex_available:platform",
+        "//apex_available:anyapex",
+    ],
+    product_specific: true,
+    vendor_available: true,
+}
+
+cc_prebuilt_library_shared {
+    name: "libpdnotifier_apex",
+    stem: "libpdnotifier",
+    overrides: [
+        "libpdnotifier",
+    ],
+    arch: {
+        arm: {
+            enabled: false,
+        },
+        arm64: {
+            srcs: ["lib64/libpdnotifier.so"],
+        },
+        x86: {
+            enabled: false,
+        },
+        x86_64: {
+            enabled: false,
+        },
+    },
+    strip: {
+        none: true,
+    },
+    owner: "qcom",
+    apex_available: [
+        "//apex_available:platform",
+        "//apex_available:anyapex",
+    ],
+    product_specific: true,
+    vendor_available: true,
+}
+
+cc_prebuilt_library_shared {
+    name: "libar-acdb_apex",
+    stem: "libar-acdb",
+    overrides: [
+        "libar-acdb",
+    ],
+    arch: {
+        arm: {
+            enabled: false,
+        },
+        arm64: {
+            srcs: ["lib64/libar-acdb.so"],
+        },
+        x86: {
+            enabled: false,
+        },
+        x86_64: {
+            enabled: false,
+        },
+    },
+    strip: {
+        none: true,
+    },
+    owner: "qcom",
+    apex_available: [
+        "//apex_available:platform",
+        "//apex_available:anyapex",
+    ],
+    product_specific: true,
+    vendor_available: true,
+}
+
+cc_prebuilt_library_shared {
+    name: "liblx-ar_util_apex",
+    stem: "liblx-ar_util",
+    overrides: [
+        "liblx-ar_util",
+    ],
+    arch: {
+        arm: {
+            enabled: false,
+        },
+        arm64: {
+            srcs: ["lib64/liblx-ar_util.so"],
+        },
+        x86: {
+            enabled: false,
+        },
+        x86_64: {
+            enabled: false,
+        },
+    },
+    strip: {
+        none: true,
+    },
+    owner: "qcom",
+    apex_available: [
+        "//apex_available:platform",
+        "//apex_available:anyapex",
+    ],
+    product_specific: true,
+    vendor_available: true,
+}
+
+cc_prebuilt_library_shared {
+    name: "libar-gpr_apex",
+    stem: "libar-gpr",
+    overrides: [
+        "libar-gpr",
+    ],
+    arch: {
+        arm: {
+            enabled: false,
+        },
+        arm64: {
+            srcs: ["lib64/libar-gpr.so"],
+        },
+        x86: {
+            enabled: false,
+        },
+        x86_64: {
+            enabled: false,
+        },
+    },
+    strip: {
+        none: true,
+    },
+    owner: "qcom",
+    apex_available: [
+        "//apex_available:platform",
+        "//apex_available:anyapex",
+    ],
+    product_specific: true,
+    vendor_available: true,
+}
+
+cc_prebuilt_library_shared {
+    name: "libqti-tinycompress_apex",
+    stem: "libqti-tinycompress",
+    overrides: [
+        "libqti-tinycompress",
+    ],
+    arch: {
+        arm: {
+            enabled: false,
+        },
+        arm64: {
+            srcs: ["lib64/libqti-tinycompress.so"],
+        },
+        x86: {
+            enabled: false,
+        },
+        x86_64: {
+            enabled: false,
+        },
+    },
+    strip: {
+        none: true,
+    },
+    owner: "qcom",
+    apex_available: [
+        "//apex_available:platform",
+        "//apex_available:anyapex",
+    ],
+    product_specific: true,
+    vendor_available: true,
+}
+
+cc_prebuilt_library_shared {
+    name: "libqmi_cci_apex",
+    stem: "libqmi_cci",
+    overrides: [
+        "libqmi_cci",
+    ],
+    arch: {
+        arm: {
+            enabled: false,
+        },
+        arm64: {
+            srcs: ["lib64/libqmi_cci.so"],
+        },
+        x86: {
+            enabled: false,
+        },
+        x86_64: {
+            enabled: false,
+        },
+    },
+    strip: {
+        none: true,
+    },
+    owner: "qcom",
+    apex_available: [
+        "//apex_available:platform",
+        "//apex_available:anyapex",
+    ],
+    product_specific: true,
+    vendor_available: true,
+}
+
+cc_prebuilt_library_shared {
+    name: "libqmi_common_so_apex",
+    stem: "libqmi_common_so",
+    overrides: [
+        "libqmi_common_so",
+    ],
+    arch: {
+        arm: {
+            enabled: false,
+        },
+        arm64: {
+            srcs: ["lib64/libqmi_common_so.so"],
+        },
+        x86: {
+            enabled: false,
+        },
+        x86_64: {
+            enabled: false,
+        },
+    },
+    strip: {
+        none: true,
+    },
+    owner: "qcom",
+    apex_available: [
+        "//apex_available:platform",
+        "//apex_available:anyapex",
+    ],
+    product_specific: true,
+    vendor_available: true,
+}
+
+cc_prebuilt_library_shared {
+    name: "libqmi_encdec_apex",
+    stem: "libqmi_encdec",
+    overrides: [
+        "libqmi_encdec",
+    ],
+    arch: {
+        arm: {
+            enabled: false,
+        },
+        arm64: {
+            srcs: ["lib64/libqmi_encdec.so"],
+        },
+        x86: {
+            enabled: false,
+        },
+        x86_64: {
+            enabled: false,
+        },
+    },
+    strip: {
+        none: true,
+    },
+    owner: "qcom",
+    apex_available: [
+        "//apex_available:platform",
+        "//apex_available:anyapex",
+    ],
+    product_specific: true,
+    vendor_available: true,
+}
+

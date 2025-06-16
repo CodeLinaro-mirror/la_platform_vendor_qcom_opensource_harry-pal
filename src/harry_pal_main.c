@@ -857,7 +857,9 @@ uint32_t handleSpkrGrpAvailability(VehicleDataType vehicledatatype) {
             effect_payload->payloadSize = sizeof(pal_effect_custom_payload_t) + sizeof(pal_awx_data_t);
             customPayload->paramId = AWX_SPATIALIZATION;
 
-            status = pal_stream_get_param(phandler->pal_stream_handle,PAL_PARAM_ID_UIEFFECT, (void *) pal_payload);
+            //using pal_gef_rw_param API for get_param
+            status = pal_gef_rw_param(PAL_PARAM_ID_UIEFFECT, (void *) pal_payload, payload_size,
+                            pal_device, PAL_STREAM_PLAYBACK_BUS, GEF_PARAM_READ, NULL);
 
             if (status != 0) {
                HAR_PAL_ERR(LOG_TAG,"%s: get param failed with error: %d\n",__func__, status);

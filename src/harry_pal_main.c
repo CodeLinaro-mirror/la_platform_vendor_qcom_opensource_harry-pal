@@ -1602,13 +1602,17 @@ int32_t set_volume(PlatformAudioDevices *har_device, float volume)
     pal_stream_element_t* stream_handler = NULL;
     struct pal_volume_data* volume_data = NULL;
 
+    if (har_device == NULL) {
+        HAR_PAL_ERR(LOG_TAG, "%s: har_device is NULL", __func__);
+        return -EINVAL;
+    }
+
     HAR_PAL_DBG(LOG_TAG,"%s.Enter, volume = %f for device id=%d",__func__, volume, har_device->device_id);
-    if (har_device != NULL) {
-       if (har_device->channels >= HAR_AUDIO_CHANNELS_1 &&
-                har_device->channels <= HAR_AUDIO_CHANNELS_32) {
-            channels = har_device->channels;
-            HAR_PAL_VERBOSE(LOG_TAG, "audioChannels = %d", channels);
-        }
+
+    if (har_device->channels >= HAR_AUDIO_CHANNELS_1 &&
+        har_device->channels <= HAR_AUDIO_CHANNELS_32) {
+        channels = har_device->channels;
+        HAR_PAL_VERBOSE(LOG_TAG, "audioChannels = %d", channels);
     }
 
     if (volume) {

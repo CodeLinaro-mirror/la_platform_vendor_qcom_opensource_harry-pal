@@ -96,6 +96,8 @@ void sample_write(PlatformAudioDevices *platform_device,FILE *file, long data_po
     int32_t written;
     uint32_t bytes;
     int fb = 0;
+    uint32_t bytes_played = 0;
+    uint32_t data_chunk_size = 0;
 
     fprintf(stdout, "Enabling write\n");
     place_markers("kpi_value HarPalTest start playback");
@@ -103,7 +105,6 @@ void sample_write(PlatformAudioDevices *platform_device,FILE *file, long data_po
     size = buffer_size_bytes(platform_device);
     fprintf(stdout, "size = %d\n",size);
     buffer = malloc(size);
-
     if (buffer != NULL) {
         memset(buffer, 0 , size);
     } else {
@@ -113,22 +114,43 @@ void sample_write(PlatformAudioDevices *platform_device,FILE *file, long data_po
     }
     bytes = size/2;
     fprintf(stdout, "bytes = %d\n",bytes);
-
     playback_rate(platform_device);
 
     /* catch ctrl-c to shutdown cleanly */
     signal(SIGINT, stream_close);
 
+    fseek(file, data_pointer - 8, SEEK_SET); // rewind to include "data" chunk header
+    char chunk_id[4];
+    fread(chunk_id, 1, 4, file); // Should be "data"
+    fread(&data_chunk_size, 4, 1, file); // Get actual PCM data size
+
+    if (memcmp(chunk_id, "data", 4) != 0 || data_chunk_size == 0) {
+        fprintf(stderr, "Invalid WAV data chunk\n");
+        free(buffer);
+        fclose(file);
+        return;
+    }
+
     for (int i = 0; i < iter; i++) {
         fprintf(stdout, "iteration=%d\n",i);
+        bytes_played = 0;
+        fseek(file, data_pointer, SEEK_SET); // Seek to PCM data
+
         do {
-            num_read = fread(buffer, 1, bytes, file);
+            uint32_t to_read = (bytes_played + bytes > data_chunk_size)
+                               ? data_chunk_size - bytes_played
+                               : bytes;
+
+            num_read = fread(buffer, 1, to_read, file);
             if (num_read > 0) {
-                written = try_play_bytes(platform_device,buffer,bytes);
-                if(fb <= 1){
+                written = try_play_bytes(platform_device, buffer, num_read);
+                bytes_played += num_read;
+
+                if (fb <= 1) {
                     place_markers("kpi_value HARPALTEST first byte success");
                     fb++;
                 }
+
                 if (written < 0) {
                     fprintf(stdout, "Write Failed\n");
                     break;
@@ -136,7 +158,7 @@ void sample_write(PlatformAudioDevices *platform_device,FILE *file, long data_po
                     fprintf(stdout, "Partial write: expected %zu, wrote %d\n", num_read, written);
                 }
             }
-        } while (!streamClose && num_read > 0);
+        } while (!streamClose && bytes_played < data_chunk_size);
         fseek(file,data_pointer,SEEK_SET);
     }
 

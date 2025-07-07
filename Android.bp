@@ -1,0 +1,104 @@
+prebuilt_etc {
+    name: "device_manager.xml",
+    src: "device_manager.xml",
+    sub_dir: "",
+    installable: true,
+    vendor: true,
+}
+
+cc_library_shared {
+    name: "libhar-pal",
+    owner: "qti",
+    vendor: true,
+
+    srcs: ["src/harry_pal_main.c"],
+
+    cflags: [
+        "-D_ANDROID_",
+        "-Wall", "-Wno-unused-function",
+        "-Wno-unused-variable",
+        "-DHAR_PAL_DEVICE=\"/vendor/etc/device_manager.xml\"",
+    ],
+    header_libs: [
+        "libarpal_headers",
+    ],
+    include_dirs: [
+        "vendor/qcom/opensource/harry-pal",
+        "vendor/qcom/opensource/pal/inc",
+        "system/media/audio/include",
+        "system/media/audio_route/include",
+        "external/expat/lib",
+        "system/media/audio_utils/include",
+    ],
+    shared_libs: [
+        "libaudioroute",
+        "libaudioutils",
+        "libcutils",
+        "libdl",
+        "libexpat",
+        "liblog",
+        "libar-pal",
+    ],
+
+    apex_available: [
+        "//apex_available:platform",
+        "com.google.display_safety.har",
+        "com.google.display_safety.har.update",
+        "com.google.display_safety.har.stub",
+    ],
+    min_sdk_version: "34",
+
+    enabled: select(soong_config_variable("qti", "ENABLE_HARPAL"), {
+        false: false,
+        default: true,
+    }),
+
+}
+
+apex_defaults {
+    name: "harry_audio_dlopen_libs",
+    native_shared_libs: [
+        "lib_oem_plugin_controls",
+        "lib_default_plugin_controls",
+        "libdev_speaker",
+        "libstream_pcm",
+        "libsession_ar",
+        "libsession_pcm",
+        "lib_default_set_param_plugin_controls",
+        "libagm_mixer_plugin",
+        "libagm_pcm_plugin",
+        "libar-gsl_fe",
+        "libuhab",
+    ],
+}
+
+cc_binary {
+    name: "HarPalTest",
+    owner: "qti",
+    vendor: true,
+
+    srcs: [
+      "test/harry_pal_test.c",
+    ],
+
+    shared_libs: [
+        "libhar-pal",
+        "libexpat",
+        "libcutils",
+        "liblog",
+    ],
+    cflags: [
+        "-Wno-tautological-compare",
+        "-Wno-macro-redefined",
+    ],
+    include_dirs: [
+        "vendor/qcom/opensource/pal/inc",
+        "system/media/audio/include",
+        "system/media/audio_route/include",
+        "external/expat/lib/expat.h",
+    ],
+    enabled: select(soong_config_variable("qti", "ENABLE_HARPAL"), {
+        false: false,
+        default: true,
+    }),
+}

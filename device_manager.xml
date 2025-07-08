@@ -1,34 +1,44 @@
 <?xml version="1.0" encoding="iso-8859-1"?>
-<!--Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.   -->
-<!--SPDX-License-Identifier: BSD-3-Clause-Clear                                -->
+<!-- Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.         -->
+<!-- SPDX-License-Identifier: BSD-3-Clause-Clear                                -->
 
 <devices>
+<!--You can enable Buffer dumping using below command:
+    adb shell setprop vendor.audio.feature.rbvm.bufdump START
+
+    logging_level = 0x1 -> To enable only Error logs
+    logging_level = 0x3 -> To enable Error+Info logs
+    logging_level = 0x7 -> To enable Error+Info+Debug logs
+    logging_level = 0xF -> To enable Error+Info+Debug+Verbose logs -->
+
+    <logging_level value="0x7"/>
+    <dump_enabled value="0"/>
     <device AudioDeviceId = "WELCOME_SEQUENCE">
         <name>HAR_PAL_DEVICE_OUT_SPEAKER_WS</name>
         <id>2</id>
         <Bus_Address>BUS00_WS</Bus_Address>
         <Volume>-3100</Volume>
-        <pcm_config sample_rate="48000" format="16" channel="2" />
+        <pcm_config sample_rate="48000" format="16" channel="2" period_size="1920" period_count="4"/>
     </device>
     <device AudioDeviceId = "WARN">
         <name>HAR_PAL_DEVICE_OUT_SPEAKER_V_WARN</name>
         <id>3</id>
         <Bus_Address>BUS01_no_ASIL</Bus_Address>
         <Volume>-3100</Volume>
-        <pcm_config sample_rate="48000" format="16" channel="1"/>
+        <pcm_config sample_rate="48000" format="16" channel="1" period_size="960" period_count="4"/>
     </device>
     <device AudioDeviceId = "ROAD-ADAS">
         <name>HAR_PAL_DEVICE_OUT_SPEAKER_ROAD_ADAS</name>
         <id>4</id>
         <Bus_Address>BUS02_Road_ADAS</Bus_Address>
         <Volume>-3100</Volume>
-        <pcm_config sample_rate="48000" format="16" channel="1"/>
+        <pcm_config sample_rate="48000" format="16" channel="1" period_size="960" period_count="4"/>
     </device>
     <device AudioDeviceId = "SWARN">
         <name>HAR_PAL_DEVICE_OUT_SPEAKER_S_WARN</name>
         <id>5</id>
         <Bus_Address>BUS03_ASIL</Bus_Address>
         <Volume>-3100</Volume>
-        <pcm_config sample_rate="48000" format="16" channel="1"/>
+        <pcm_config sample_rate="48000" format="16" channel="1" period_size="960" period_count="4"/>
     </device>
 </devices>

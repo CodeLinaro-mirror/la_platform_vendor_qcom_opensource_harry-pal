@@ -24,12 +24,10 @@
 #define ID_DATA 0x61746164
 
 #define PCM_DEVICE_NAME_DEFAULT "default"
-#define DEEP_BUFFER_PERIOD_SIZE 1920
-#define LOW_LATENCY_PERIOD_SIZE 960  //20ms
-#define PERIOD_COUNT 4
 #define DEFAULT_CARD_ID 0
 #define DEFAULT_BUF_SIZE 1024
 #define DEFAULT_BUF_COUNT 4
+#define DUMP_FILE_SIZE (5 * 1024 * 1024)
 
 #define HAR_SPKR_AVAIL_ALL 15 //corresponds to bitmask 1111 for speaker group availability
 
@@ -207,6 +205,20 @@ typedef enum {
     HAR_AUDIO_CHANNELS_32 = 32
 } har_audio_channels_t;
 
+typedef enum {
+    //OUTPUT DEVICES
+    HAR_PAL_DEVICE_OUT_MIN = 0,
+    HAR_PAL_DEVICE_OUT_NONE = 1,
+    HAR_PAL_DEVICE_OUT_SPEAKER_WS = 2,
+    HAR_PAL_DEVICE_OUT_SPEAKER_V_WARN = 3,
+    HAR_PAL_DEVICE_OUT_SPEAKER_ROAD_ADAS = 4,
+    HAR_PAL_DEVICE_OUT_SPEAKER_S_WARN = 5,
+    HAR_PAL_DEVICE_OUT_SPEAKER_A2B = 6,
+    HAR_PAL_DEVICE_OUT_SPEAKER_A2B2 = 7,
+    // Add new OUT devices here, increment MAX and MIN below when you do so
+    HAR_PAL_DEVICE_OUT_MAX = 8,
+} har_pal_out_device_id_t;
+
 typedef struct {
     int32_t device_id;
     char AudioDeviceId[MAX_ADDRESS_LEN];
@@ -301,10 +313,6 @@ typedef struct {
     uint32_t (*handler)(VehicleDataType vehicledatatype); //Function pointer to handle ID
 } IdHandler;
 
-//Global lookup table to store ID-handler mappings
-IdHandler idHandlerMap[100];
-size_t idHandlerCount = 0;   //Number of registered IDs
-
 static inline void place_markers(char const *name){
    int fd=open("/dev/kmsg_debug", O_WRONLY);
    if (fd > 0)
@@ -316,10 +324,20 @@ static inline void place_markers(char const *name){
    }
 }
 
+//Global lookup table to store ID-handler mappings
+IdHandler idHandlerMap[100];
+size_t idHandlerCount = 0;   //Number of registered IDs
+
+uint32_t Low_Latency_Period_Size = 960;
+uint32_t Deep_Buffer_Period_Size = 1920;
+uint32_t Period_Count = 4;
+int dump_enabled = 0;
+
 bool parse_device_xml();
 Spatialization stringToEnum(const char *str);
 PlatformAudioDevices get_audio_device(const char* device_id);
 PlatformAudioDevices load_default_config(const char* device);
+uint64_t get_current_time_ns();
 void channel_map(uint8_t* ch_map, int channels);
 int32_t Open_Device(PlatformAudioDevices *har_device);
 void sample_write(PlatformAudioDevices *har_device, FILE *file, long data_pointer,int iter);

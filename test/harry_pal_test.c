@@ -393,6 +393,18 @@ int main(int argc, char *argv[])
     if (argc > 1) {
         while (!streamClose) {
            switch (*usecase) {
+            case 'k' :
+                platform_device = get_audio_device("WELCOME_SEQUENCE");
+                fprintf(stdout, "platform_device.AudioDeviceId = %d, channels = %d\n", platform_device.device_id, platform_device.channels);
+                status = Open_Device(&platform_device);
+                if (status) {
+                    fprintf(stdout, "Open_Device failed\n");
+                    break;
+                }
+                sample_write(&platform_device,file,data_pointer,iter);
+                disable_usecase();
+                fclose(file);
+                break;
             case 's' :
                 platform_device = get_audio_device("WELCOME_SEQUENCE");
                 fprintf(stdout, "platform_device.AudioDeviceId = %d, channels = %d\n", platform_device.device_id, platform_device.channels);

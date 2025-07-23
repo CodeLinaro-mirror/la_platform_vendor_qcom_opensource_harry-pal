@@ -1761,13 +1761,13 @@ uint32_t set_spatialization(PlatformAudioDevices *har_device, Spatialization val
     }
 
     if(spkr_grp_avail != HAR_SPKR_AVAIL_ALL) {
-        Spatialization new_value = MAPPING_TABLE[spkr_grp_avail][get_column_index(value)];
+        new_value = MAPPING_TABLE[spkr_grp_avail][get_column_index(value)];
         HAR_PAL_INFO(LOG_TAG, "new Spatialization value :%d, %s\n",
                         new_value, outcome_zone_to_string(new_value));
     }
 
     if (new_value != value) {
-        HAR_PAL_ERR(LOG_TAG, "%s Speaker group not available routing to %s\n",
+        HAR_PAL_INFO(LOG_TAG, "%s Speaker group not available routing to %s\n",
                         outcome_zone_to_string(value), outcome_zone_to_string(new_value));
         value = new_value;
     }

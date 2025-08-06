@@ -75,6 +75,7 @@ cc_prebuilt_library_shared {
         "libagmsocket_client_apex",
         "libsession_ar_apex",
         "libtinycompress_apex",
+        "lib_default_set_param_plugin_controls_apex",
     ],
 
     strip: {
@@ -88,6 +89,38 @@ cc_prebuilt_library_shared {
         "//apex_available:anyapex",
     ],
 
+    product_specific: true,
+    vendor_available: true,
+}
+
+cc_prebuilt_library_shared {
+    name: "lib_default_set_param_plugin_controls_apex",
+    stem: "lib_default_set_param_plugin_controls",
+    overrides: [
+        "lib_default_set_param_plugin_controls",
+    ],
+    arch: {
+        arm: {
+            enabled: false,
+        },
+        arm64: {
+            srcs: ["lib64/lib_default_set_param_plugin_controls.so"],
+        },
+        x86: {
+            enabled: false,
+        },
+        x86_64: {
+            enabled: false,
+        },
+    },
+    strip: {
+        none: true,
+    },
+    owner: "qcom",
+    apex_available: [
+        "//apex_available:platform",
+        "//apex_available:anyapex",
+    ],
     product_specific: true,
     vendor_available: true,
 }

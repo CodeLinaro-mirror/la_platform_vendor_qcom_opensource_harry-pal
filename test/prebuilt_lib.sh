@@ -49,5 +49,6 @@ cp -rf ${VENDOR_DIR}/libagmsocket.so                    ${HARRY_DIR}lib64/
 cp -rf ${VENDOR_DIR}/libagmsocket_client.so             ${HARRY_DIR}lib64/
 cp -rf ${VENDOR_DIR}/libsession_ar.so                   ${HARRY_DIR}lib64/
 cp -rf ${VENDOR_DIR}/libtinycompress.so                 ${HARRY_DIR}lib64/
+cp -rf ${VENDOR_DIR}/lib_default_set_param_plugin_controls.so                 ${HARRY_DIR}lib64/
 
 #End

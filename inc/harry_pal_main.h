@@ -100,6 +100,7 @@ typedef enum snd_card_status_t {
 typedef struct {
     pal_stream_handle_t *pal_stream_handle;
     struct pal_buffer_config outBufCfg;
+    float volume;
 } pal_stream_element_t;
 
 typedef enum {
@@ -346,5 +347,6 @@ uint32_t buffer_size_bytes(PlatformAudioDevices *har_device);
 ssize_t try_play_bytes(PlatformAudioDevices *har_device,void *buffer,int bytes);
 uint32_t playback_rate(PlatformAudioDevices *har_device);
 int32_t set_volume(PlatformAudioDevices *har_device, float volume);
+float get_volume(PlatformAudioDevices *har_device);
 uint32_t set_spatialization(PlatformAudioDevices *har_device, Spatialization value);
 uint32_t set_custom_parameter(const char *id, VehicleDataType vehicledatatype);

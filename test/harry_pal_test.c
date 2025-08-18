@@ -88,7 +88,7 @@ Spatialization stringToEnum(const char *str) {
     }
 }
 
-void sample_write(PlatformAudioDevices *platform_device,FILE *file, long data_pointer,int iter)
+void sample_write(PlatformAudioDevices *platform_device,FILE *file, long data_pointer,int iter,uint32_t data_chunk_size)
 {
     char *buffer = NULL;
     uint32_t size;
@@ -97,7 +97,6 @@ void sample_write(PlatformAudioDevices *platform_device,FILE *file, long data_po
     uint32_t bytes;
     int fb = 0;
     uint32_t bytes_played = 0;
-    uint32_t data_chunk_size = 0;
 
     fprintf(stdout, "Enabling write\n");
     place_markers("kpi_value HarPalTest start playback");
@@ -112,24 +111,12 @@ void sample_write(PlatformAudioDevices *platform_device,FILE *file, long data_po
         fclose(file);
         return;
     }
-    bytes = size/2;
+    bytes = size/Period_Count;
     fprintf(stdout, "bytes = %d\n",bytes);
     playback_rate(platform_device);
 
     /* catch ctrl-c to shutdown cleanly */
     signal(SIGINT, stream_close);
-
-    fseek(file, data_pointer - 8, SEEK_SET); // rewind to include "data" chunk header
-    char chunk_id[4];
-    fread(chunk_id, 1, 4, file); // Should be "data"
-    fread(&data_chunk_size, 4, 1, file); // Get actual PCM data size
-
-    if (memcmp(chunk_id, "data", 4) != 0 || data_chunk_size == 0) {
-        fprintf(stderr, "Invalid WAV data chunk\n");
-        free(buffer);
-        fclose(file);
-        return;
-    }
 
     for (int i = 0; i < iter; i++) {
         fprintf(stdout, "iteration=%d\n",i);
@@ -137,9 +124,8 @@ void sample_write(PlatformAudioDevices *platform_device,FILE *file, long data_po
         fseek(file, data_pointer, SEEK_SET); // Seek to PCM data
 
         do {
-            uint32_t to_read = (bytes_played + bytes > data_chunk_size)
-                               ? data_chunk_size - bytes_played
-                               : bytes;
+            uint32_t to_read = (bytes_played + bytes > data_chunk_size) ?
+                                        data_chunk_size - bytes_played : bytes;
 
             num_read = fread(buffer, 1, to_read, file);
             if (num_read > 0) {
@@ -167,16 +153,55 @@ void sample_write(PlatformAudioDevices *platform_device,FILE *file, long data_po
     fprintf(stdout, "Done Playing.\n");
 }
 
-void disable_usecase()
-{
-    int status =0;
-    fprintf(stdout,"Enter Disable_usecase()\n");
-    status = StopAndCloseUsecase(&platform_device);
-    if(status) {
-        fprintf(stdout, "StopAndCloseUsecase failed\n");
+void *setParameter_multithread(void *args) {
+    PlaybackData *data = (PlaybackData *)args;
+
+    PlatformAudioDevices plat_device = get_audio_device(data->AudioDeviceId);
+    fprintf(stdout, "platform_device.AudioDeviceId = %d, channels = %d\n",
+            plat_device.device_id, plat_device.channels);
+    for(int i=0;i<200;i++){
+        if(streamClose)
+            break;
+        set_volume(&plat_device,data->volume);
+        set_spatialization(&plat_device, data->value);
+
+        if (plat_device.device_id >= HAR_PAL_DEVICE_OUT_SPEAKER_WS ||
+                        plat_device.device_id <= HAR_PAL_DEVICE_OUT_SPEAKER_ROAD_ADAS) {
+            set_custom_parameter(data->vehicle_id, data->vehicledatatype);
+        }
+        usleep(1000);
     }
-    fprintf(stdout,"Exit Disable_usecase()\n");
-    streamClose = 1;
+    fprintf(stdout,"Exit setParameter_multithread()\n");
+    pthread_exit(NULL);
+}
+
+void set_custom_parameter_mt(){
+    pthread_t thread;
+    PlaybackData *pbData = malloc(sizeof(PlaybackData));
+    if (!pbData) {
+        fprintf(stderr, "Memory allocation failed\n");
+        return;
+    }
+
+    VehicleDataType vehicledatatype1;
+    strlcpy(pbData->AudioDeviceId, "ROAD-ADAS", MAX_ADDRESS_LEN);
+    pbData->volume = 0;
+    pbData->value = FrontCenter;
+
+    strlcpy(vehicledatatype1.key, "CYBER_MASTER_MUTE", MAX_ADDRESS_LEN);
+    vehicledatatype1.value.integer_data = 0;
+
+    pbData->vehicledatatype = vehicledatatype1;
+    pbData->vehicle_id = "AUDIO_PARAM_ID_MUTE";
+
+    if (pthread_create(&thread, NULL, setParameter_multithread, pbData) != 0) {
+        fprintf(stderr, "Failed to create thread\n");
+        free(pbData);
+        return;
+    }
+
+    // Wait for the thread to complete
+    pthread_join(thread, NULL);
 }
 
 void *playback_multithread(void *args) {
@@ -199,7 +224,8 @@ void *playback_multithread(void *args) {
     set_volume(&plat_device,data->volume);
     set_spatialization(&plat_device, data->value);
     // Check the device ID before calling set_custom_parameter
-    if (plat_device.device_id == 2 || plat_device.device_id == 3 || plat_device.device_id == 4) {
+    if (plat_device.device_id >= HAR_PAL_DEVICE_OUT_SPEAKER_WS ||
+                        plat_device.device_id <= HAR_PAL_DEVICE_OUT_SPEAKER_ROAD_ADAS) {
      set_custom_parameter(data->vehicle_id, data->vehicledatatype);
     }
     else {
@@ -218,7 +244,7 @@ void *playback_multithread(void *args) {
         printf("Unable to allocate %d size\n", size);
         pthread_exit(NULL);
     }
-    bytes = size/2;
+    bytes = size/Period_Count;
     fprintf(stdout, "bytes = %d\n",bytes);
 
     playback_rate(&plat_device);
@@ -252,6 +278,7 @@ int main(int argc, char *argv[])
     char *filename;
     int more_chunks = 1;
     long data_pointer = 0;
+    uint32_t data_chunk_size = 0;
     int iter = 1;
     char *usecase = "s";
     char *id = "AUDIO_PARAM_ID_MUTE";
@@ -264,15 +291,15 @@ int main(int argc, char *argv[])
     float vol = -3100.0;
     Spatialization spt = Center;
 
-      if (argc < 2) {
+    if (argc < 2) {
         printf("Usage: %s file.wav [-v volume : -9000(min) to 0(max)] [-spt spatialization : FC, FL, FR, C, RC, RR, RL , R, L] \n", argv[0]);
         return 1;
     }
 
     filename = argv[1];
     if (filename == NULL) {
-      printf("Invalid filename");
-      return 1;
+        printf("Invalid filename");
+        return 1;
     }
     printf("filename: %s \n",filename);
 
@@ -281,6 +308,8 @@ int main(int argc, char *argv[])
         printf("Unable to open file '%s'\n", filename);
         return 1;
     }
+
+    place_markers("kpi_value HarPalTest started");
 
     fread(&riff_wave_header, sizeof(riff_wave_header), 1, file);
     if ((riff_wave_header.riff_id != ID_RIFF) ||
@@ -294,20 +323,26 @@ int main(int argc, char *argv[])
         fread(&chunk_header, sizeof(chunk_header), 1, file);
 
         switch (chunk_header.id) {
-        case ID_FMT:
-            fread(&chunk_fmt, sizeof(chunk_fmt), 1, file);
-            /* If the format header is larger, skip the rest */
-            if (chunk_header.sz > sizeof(chunk_fmt))
-                fseek(file, chunk_header.sz - sizeof(chunk_fmt), SEEK_CUR);
-            break;
-        case ID_DATA:
-            /* Stop looking for chunks */
-            more_chunks = 0;
-            data_pointer = ftell(file);
-            break;
-        default:
-            /* Unknown chunk, skip bytes */
-            fseek(file, chunk_header.sz, SEEK_CUR);
+            case ID_FMT:
+                fread(&chunk_fmt, sizeof(chunk_fmt), 1, file);
+                /* If the format header is larger, skip the rest */
+                if (chunk_header.sz > sizeof(chunk_fmt))
+                    fseek(file, chunk_header.sz - sizeof(chunk_fmt), SEEK_CUR);
+                break;
+            case ID_DATA:
+                /* Stop looking for chunks */
+                more_chunks = 0;
+                data_pointer = ftell(file);
+                data_chunk_size = chunk_header.sz;
+                if (data_chunk_size <= 0){
+                    fprintf(stdout,"Error: Data Size is Zero\n");
+                    fclose(file);
+                }
+
+                break;
+            default:
+                /* Unknown chunk, skip bytes */
+                fseek(file, chunk_header.sz, SEEK_CUR);
         }
     } while (more_chunks);
 
@@ -351,9 +386,19 @@ int main(int argc, char *argv[])
             if (*argv)
                spkr_grp_avail = *argv;
         }
-          if (*argv)
+        if (*argv)
             argv++;
     }
+
+    PlatformAudioDevices welcome_dev = get_audio_device("WELCOME_SEQUENCE");
+
+    if (Open_Device(&welcome_dev)) {
+        fprintf(stdout, "Open_Device failed for WELCOME_SEQUENCE\n");
+        goto close;
+    }
+    //for kpi measurement
+    if (strcmp(usecase, "k") == 0)
+        sample_write(&welcome_dev,file,data_pointer,iter,data_chunk_size);
 
    VehicleDataType vehicledatatype;
    strlcpy(vehicledatatype.key, key, MAX_ADDRESS_LEN);
@@ -387,135 +432,91 @@ int main(int argc, char *argv[])
             fprintf(stdout, "Error: spkr grp not provided using default\n");
          }
     } else {
-       fprintf(stdout, "Error:Unsupported Key\n");
+        fprintf(stdout, "Error:Unsupported Key\n");
+    }
+
+    PlatformAudioDevices warn_dev = get_audio_device("WARN");
+    PlatformAudioDevices swarn_dev = get_audio_device("SWARN");
+    PlatformAudioDevices road_adas_dev = get_audio_device("ROAD-ADAS");
+
+    if (Open_Device(&warn_dev)) {
+        fprintf(stdout, "Open_Device failed for WARN\n");
+        goto close;
+    }
+
+    if (Open_Device(&swarn_dev)) {
+        fprintf(stdout, "Open_Device failed for SWARN\n");
+        goto close;
+    }
+
+    if (Open_Device(&road_adas_dev)) {
+        fprintf(stdout, "Open_Device failed for ROAD-ADAS\n");
+        goto close;
     }
 
     if (argc > 1) {
         while (!streamClose) {
            switch (*usecase) {
-            case 'k' :
-                platform_device = get_audio_device("WELCOME_SEQUENCE");
-                fprintf(stdout, "platform_device.AudioDeviceId = %d, channels = %d\n", platform_device.device_id, platform_device.channels);
-                status = Open_Device(&platform_device);
-                if (status) {
-                    fprintf(stdout, "Open_Device failed\n");
-                    break;
-                }
-                sample_write(&platform_device,file,data_pointer,iter);
-                disable_usecase();
-                fclose(file);
-                break;
             case 's' :
-                platform_device = get_audio_device("WELCOME_SEQUENCE");
-                fprintf(stdout, "platform_device.AudioDeviceId = %d, channels = %d\n", platform_device.device_id, platform_device.channels);
-                status = Open_Device(&platform_device);
-                if (status) {
-                    fprintf(stdout, "Open_Device failed\n");
-                    break;
-                }
-                set_volume(&platform_device, vol);
-                set_spatialization(&platform_device, spt);
+                fprintf(stdout, "WELCOME_SEQUENCE: device_id = %d, channels = %d\n",
+                        welcome_dev.device_id, welcome_dev.channels);
+                set_volume(&welcome_dev, vol);
+                set_spatialization(&welcome_dev, spt);
                 set_custom_parameter(id, vehicledatatype);
                 fprintf(stdout, "\n set_custom_parameter called\n");
-                sample_write(&platform_device,file,data_pointer,iter);
-                disable_usecase();
-                fclose(file);
+                sample_write(&welcome_dev,file,data_pointer,iter,data_chunk_size);
                 break;
             case 'g' :
-                platform_device = get_audio_device("WELCOME_SEQUENCE");
-                fprintf(stdout, "platform_device.AudioDeviceId = %d, channels = %d\n", platform_device.device_id, platform_device.channels);
-                set_volume(&platform_device, vol);
-                status = Open_Device(&platform_device);
-                if (status) {
-                    fprintf(stdout, "Open_Device failed\n");
-                    break;
-                }
-                set_spatialization(&platform_device, spt);
-                platform_device = get_audio_device("WARN");
-                fprintf(stdout, "platform_device.device_id = %d channels = %d\n", platform_device.device_id, platform_device.channels);
-                set_volume(&platform_device, vol);
-                status = Open_Device(&platform_device);
-                if (status) {
-                    fprintf(stdout, "Open_Device failed\n");
-                    break;
-                }
-                set_spatialization(&platform_device, spt);
+                fprintf(stdout, "WELCOME_SEQUENCE: deviceId = %d, channels = %d\n", welcome_dev.device_id, welcome_dev.channels);
+                set_volume(&welcome_dev, vol);
+                set_spatialization(&welcome_dev, spt);
+
+                fprintf(stdout, "WARN: device_id = %d channels = %d\n", warn_dev.device_id, warn_dev.channels);
+                set_volume(&warn_dev, vol);
+                set_spatialization(&warn_dev, spt);
+
                 set_custom_parameter(id, vehicledatatype);
                 fprintf(stdout, "\n set_custom_parameter called\n");
                 set_custom_parameter(id, vehicledatatype);
                 fprintf(stdout, "\n set_custom_parameter called\n");
-                platform_device = get_audio_device("ROAD-ADAS");
-                fprintf(stdout, "platform_device.device_id = %d channels = %d\n", platform_device.device_id, platform_device.channels);
-                set_volume(&platform_device, vol);
-                status = Open_Device(&platform_device);
-                if (status) {
-                    fprintf(stdout, "Open_Device failed\n");
-                    break;
-                }
-                set_spatialization(&platform_device, spt);
+
+                fprintf(stdout, "ROAD-ADAS: device_id = %d channels = %d\n", road_adas_dev.device_id, road_adas_dev.channels);
+                set_volume(&road_adas_dev, vol);
+                set_spatialization(&road_adas_dev, spt);
                 set_custom_parameter(id, vehicledatatype);
                 fprintf(stdout, "\n set_custom_parameter called\n");
-                platform_device = get_audio_device("ROAD-ADAS");
-                fprintf(stdout, "platform_device.device_id = %d channels = %d\n", platform_device.device_id, platform_device.channels);
-                set_volume(&platform_device, vol);
-                status = Open_Device(&platform_device);
-                if (status) {
-                    fprintf(stdout, "Open_Device failed\n");
-                    break;
-                }
-                set_spatialization(&platform_device, spt);
+
+                set_volume(&road_adas_dev, vol);
+                set_spatialization(&road_adas_dev, spt);
                 set_custom_parameter(id, vehicledatatype);
                 fprintf(stdout, "\n set_custom_parameter called\n");
                 break;
             case 'w' :
-                platform_device = get_audio_device("WARN");
-                fprintf(stdout, "platform_device.device_id = %d channels = %d\n", platform_device.device_id, platform_device.channels);
-                status = Open_Device(&platform_device);
-                if (status) {
-                    fprintf(stdout, "Open_Device failed\n");
-                    break;
-                }
-                set_volume(&platform_device, vol);
-                set_spatialization(&platform_device, spt);
+                fprintf(stdout, "WARN: device_id = %d channels = %d\n",
+                        warn_dev.device_id, warn_dev.channels);
+                set_volume(&warn_dev, vol);
+                set_spatialization(&warn_dev, spt);
                 set_custom_parameter(id, vehicledatatype);
                 fprintf(stdout, "\n set_custom_parameter called\n");
-                sample_write(&platform_device,file,data_pointer,iter);
-                disable_usecase();
-                fclose(file);
+                sample_write(&warn_dev,file,data_pointer,iter,data_chunk_size);
                 break;
             case 'r' :
-                platform_device = get_audio_device("ROAD-ADAS");
-                fprintf(stdout, "platform_device.device_id = %d channels = %d\n", platform_device.device_id, platform_device.channels);
-                status = Open_Device(&platform_device);
-                if (status) {
-                    fprintf(stdout, "Open_Device failed\n");
-                    break;
-                }
-                set_volume(&platform_device, vol);
-                set_spatialization(&platform_device, spt);
+                fprintf(stdout, "ROAD-ADAS: device_id = %d channels = %d\n",
+                        road_adas_dev.device_id, road_adas_dev.channels);
+                set_volume(&road_adas_dev, vol);
+                set_spatialization(&road_adas_dev, spt);
                 set_custom_parameter(id, vehicledatatype);
                 fprintf(stdout, "\n set_custom_parameter called\n");
-                sample_write(&platform_device,file,data_pointer,iter);
-                disable_usecase();
-                fclose(file);
+                sample_write(&road_adas_dev,file,data_pointer,iter,data_chunk_size);
                 break;
             case 't' :
-                platform_device = get_audio_device("SWARN");
-                fprintf(stdout, "platform_device.device_id = %d channels = %d\n", platform_device.device_id, platform_device.channels);
-                status = Open_Device(&platform_device);
-                if (status) {
-                    fprintf(stdout, "Open_Device failed\n");
-                    break;
-                }
-                set_volume(&platform_device, vol);
-                set_spatialization(&platform_device, spt);
+                fprintf(stdout, "SWARN: device_id = %d channels = %d\n", swarn_dev.device_id, swarn_dev.channels);
+                set_volume(&swarn_dev, vol);
+                set_spatialization(&swarn_dev, spt);
                 set_custom_parameter(id, vehicledatatype);
                 fprintf(stdout, "\n set_custom_parameter called\n");
-                sample_write(&platform_device,file,data_pointer,iter);
-                disable_usecase();
-                fclose(file);
+                sample_write(&swarn_dev,file,data_pointer,iter,data_chunk_size);
                 break;
-
             case 'm' :
                 pthread_t threads[MAX_DEVICES];
                 PlaybackData pbData[MAX_DEVICES];
@@ -563,16 +564,33 @@ int main(int argc, char *argv[])
                 fclose(file);
                 streamClose = 1;
                 break;
+            case 'a' :
+                fprintf(stdout, "road_adas_dev.device_id = %d channels = %d\n", road_adas_dev.device_id, road_adas_dev.channels);
 
-            case 'c'  :
-                disable_usecase();
-                fclose(file);
+                set_volume(&road_adas_dev, vol);
+                set_spatialization(&road_adas_dev, spt);
+                set_custom_parameter(id, vehicledatatype);
+                set_spatialization(&road_adas_dev, spt);
+                fprintf(stdout, "\n set_custom_parameter called\n");
+                // Launch and wait for custom parameter thread
+                set_custom_parameter_mt();
+
+                sample_write(&road_adas_dev, file, data_pointer, iter,data_chunk_size);
                 break;
             default:
                 fprintf(stdout, "Enter s,w,r,g to start the usecase or c to close the usecase\n");
                 break;
             }
+            streamClose = 1;
+        }
     }
+
+close:
+    StopAndCloseUsecase(&welcome_dev);
+    StopAndCloseUsecase(&road_adas_dev);
+    StopAndCloseUsecase(&warn_dev);
+    StopAndCloseUsecase(&swarn_dev);
+    streamClose = 1;
+    fclose(file);
     return status;
-    }
 }

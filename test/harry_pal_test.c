@@ -212,6 +212,7 @@ void *playback_multithread(void *args) {
     int32_t status;
     int32_t written;
     uint32_t bytes;
+    float getvol = -3100.0;
 
     PlatformAudioDevices plat_device = get_audio_device(data->AudioDeviceId);
     fprintf(stdout, "platform_device.AudioDeviceId = %d, channels = %d\n",
@@ -222,6 +223,8 @@ void *playback_multithread(void *args) {
         pthread_exit(NULL);
     }
     set_volume(&plat_device,data->volume);
+    getvol = get_volume(&plat_device);
+    fprintf(stdout, "\n get_volume  return : %f \n", getvol);
     set_spatialization(&plat_device, data->value);
     // Check the device ID before calling set_custom_parameter
     if (plat_device.device_id >= HAR_PAL_DEVICE_OUT_SPEAKER_WS ||
@@ -289,6 +292,7 @@ int main(int argc, char *argv[])
     const char *spkr_grp_avail = NULL;
     int status = 0;
     float vol = -3100.0;
+    float getvol = -3100.0;
     Spatialization spt = Center;
 
     if (argc < 2) {
@@ -461,6 +465,8 @@ int main(int argc, char *argv[])
                 fprintf(stdout, "WELCOME_SEQUENCE: device_id = %d, channels = %d\n",
                         welcome_dev.device_id, welcome_dev.channels);
                 set_volume(&welcome_dev, vol);
+                getvol = get_volume(&welcome_dev);
+                fprintf(stdout, "\n get_volume  return : %f \n", getvol);
                 set_spatialization(&welcome_dev, spt);
                 set_custom_parameter(id, vehicledatatype);
                 fprintf(stdout, "\n set_custom_parameter called\n");
@@ -495,6 +501,8 @@ int main(int argc, char *argv[])
                 fprintf(stdout, "WARN: device_id = %d channels = %d\n",
                         warn_dev.device_id, warn_dev.channels);
                 set_volume(&warn_dev, vol);
+                getvol = get_volume(&warn_dev);
+                fprintf(stdout, "\n get_volume  return : %f \n", getvol);
                 set_spatialization(&warn_dev, spt);
                 set_custom_parameter(id, vehicledatatype);
                 fprintf(stdout, "\n set_custom_parameter called\n");
@@ -504,14 +512,28 @@ int main(int argc, char *argv[])
                 fprintf(stdout, "ROAD-ADAS: device_id = %d channels = %d\n",
                         road_adas_dev.device_id, road_adas_dev.channels);
                 set_volume(&road_adas_dev, vol);
+                getvol = get_volume(&road_adas_dev);
+                fprintf(stdout, "\n get_volume  return : %f \n", getvol);
                 set_spatialization(&road_adas_dev, spt);
                 set_custom_parameter(id, vehicledatatype);
                 fprintf(stdout, "\n set_custom_parameter called\n");
                 sample_write(&road_adas_dev,file,data_pointer,iter,data_chunk_size);
                 break;
+            case 'j' :
+                fprintf(stdout, "WELCOME_SEQUENCE: device_id = %d, channels = %d\n", welcome_dev.device_id, welcome_dev.channels);
+                getvol = get_volume(&welcome_dev);
+                fprintf(stdout, "\n get_volume for welcome sequence return : %f \n", getvol);
+                sample_write(&welcome_dev,file,data_pointer,iter,data_chunk_size);
+                fprintf(stdout, "ROAD-ADAS: device_id = %d channels = %d\n", road_adas_dev.device_id, road_adas_dev.channels);
+                set_volume(&road_adas_dev, vol);
+                getvol = get_volume(&road_adas_dev);
+                fprintf(stdout, "\n get_volume for Road adas return : %f \n", getvol);
+                break;
             case 't' :
                 fprintf(stdout, "SWARN: device_id = %d channels = %d\n", swarn_dev.device_id, swarn_dev.channels);
                 set_volume(&swarn_dev, vol);
+                getvol = get_volume(&swarn_dev);
+                fprintf(stdout, "\n get_volume  return : %f \n", getvol);
                 set_spatialization(&swarn_dev, spt);
                 set_custom_parameter(id, vehicledatatype);
                 fprintf(stdout, "\n set_custom_parameter called\n");

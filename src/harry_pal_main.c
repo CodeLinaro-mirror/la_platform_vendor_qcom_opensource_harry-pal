@@ -1484,6 +1484,7 @@ int32_t Open_Device(PlatformAudioDevices *har_device) {
         ret = pal_stream_start(stream_handler->pal_stream_handle);
         ATRACE_END();
         place_markers("kpi_value pal_stream_start DONE");
+        set_volume(har_device, har_device->volume);
     }
     if (ret == 0)
            stream_started = 1;
@@ -1719,7 +1720,8 @@ int32_t set_volume(PlatformAudioDevices *har_device, float volume)
                return -EINVAL;
             }
             status = pal_stream_set_volume(stream_handler->pal_stream_handle, volume_data);
-
+            stream_handler->volume = volume;
+            HAR_PAL_DBG(LOG_TAG,"%s: update Set volume on stream handler: %f \n",__func__, stream_handler->volume);
             free(volume_data);
         }
     }
@@ -1732,6 +1734,28 @@ int32_t set_volume(PlatformAudioDevices *har_device, float volume)
 
     return status;
 }
+
+/*This function gets volume of a particular stream. */
+float get_volume(PlatformAudioDevices *har_device) {
+    pal_stream_element_t* stream_handler = NULL;
+
+    HAR_PAL_DBG(LOG_TAG, "%s: enter \n", __func__);
+
+    if (har_device == NULL) {
+      HAR_PAL_ERR(LOG_TAG, "%s: har_device is NULL", __func__);
+      return -EINVAL;
+    }
+
+    stream_handler = get_stream_handler(har_device->device_id);
+    if (!stream_handler || !stream_handler->pal_stream_handle) {
+        HAR_PAL_ERR(LOG_TAG, "%s: Invalid stream handler", __func__);
+        return -EINVAL;
+    }
+    HAR_PAL_INFO(LOG_TAG, "%s: get volume: %f \n",  __func__, stream_handler->volume);
+
+    return stream_handler->volume;
+}
+
 
 /*C implementation of close() API from Harry.
  *Further calls pal_stream_stop() and pal_stream_close().

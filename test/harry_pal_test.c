@@ -209,7 +209,6 @@ void *playback_multithread(void *args) {
     char *buffer = NULL;
     uint32_t size;
     size_t num_read;
-    int32_t status;
     int32_t written;
     uint32_t bytes;
     float getvol = -3100.0;
@@ -217,11 +216,6 @@ void *playback_multithread(void *args) {
     PlatformAudioDevices plat_device = get_audio_device(data->AudioDeviceId);
     fprintf(stdout, "platform_device.AudioDeviceId = %d, channels = %d\n",
             plat_device.device_id, plat_device.channels);
-     status = Open_Device(&plat_device);
-    if (status) {
-        fprintf(stdout, "Open_Device failed\n");
-        pthread_exit(NULL);
-    }
     set_volume(&plat_device,data->volume);
     getvol = get_volume(&plat_device);
     fprintf(stdout, "\n get_volume  return : %f \n", getvol);
@@ -268,7 +262,6 @@ void *playback_multithread(void *args) {
     free(buffer);
     place_markers("kpi_value HarPalTest done playing");
     fprintf(stdout, "Done Playing.\n");
-    StopAndCloseUsecase(&plat_device);
     pthread_exit(NULL);
 }
 

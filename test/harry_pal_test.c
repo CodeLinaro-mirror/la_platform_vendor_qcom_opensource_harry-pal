@@ -91,12 +91,10 @@ Spatialization stringToEnum(const char *str) {
 void sample_write(PlatformAudioDevices *platform_device,FILE *file, long data_pointer,int iter,uint32_t data_chunk_size)
 {
     char *buffer = NULL;
-    uint32_t size;
+    uint32_t size,bytes,period_count,bytes_played = 0;
     size_t num_read;
     int32_t written;
-    uint32_t bytes;
     int fb = 0;
-    uint32_t bytes_played = 0;
 
     fprintf(stdout, "Enabling write\n");
     place_markers("kpi_value HarPalTest start playback");
@@ -111,7 +109,8 @@ void sample_write(PlatformAudioDevices *platform_device,FILE *file, long data_po
         fclose(file);
         return;
     }
-    bytes = size/Period_Count;
+    period_count = (platform_device->device_id == HAR_PAL_DEVICE_OUT_SPEAKER_WS) ? DB_Period_Count : LL_Period_Count;
+    bytes = size/period_count;
     fprintf(stdout, "bytes = %d\n",bytes);
     playback_rate(platform_device);
 
@@ -207,10 +206,9 @@ void set_custom_parameter_mt(){
 void *playback_multithread(void *args) {
     PlaybackData *data = (PlaybackData *)args;
     char *buffer = NULL;
-    uint32_t size;
+    uint32_t size,bytes,period_count;
     size_t num_read;
     int32_t written;
-    uint32_t bytes;
     float getvol = -3100.0;
 
     PlatformAudioDevices plat_device = get_audio_device(data->AudioDeviceId);
@@ -241,7 +239,8 @@ void *playback_multithread(void *args) {
         printf("Unable to allocate %d size\n", size);
         pthread_exit(NULL);
     }
-    bytes = size/Period_Count;
+    period_count = (plat_device.device_id == HAR_PAL_DEVICE_OUT_SPEAKER_WS) ? DB_Period_Count : LL_Period_Count;
+    bytes = size/period_count;
     fprintf(stdout, "bytes = %d\n",bytes);
 
     playback_rate(&plat_device);

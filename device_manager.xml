@@ -18,7 +18,7 @@
         <id>2</id>
         <Bus_Address>BUS00_WS</Bus_Address>
         <Volume>-3100</Volume>
-        <pcm_config sample_rate="48000" format="16" channel="2" period_size="1920" period_count="4"/>
+        <pcm_config sample_rate="48000" format="16" channel="2" period_size="1920" period_count="8"/>
     </device>
     <device AudioDeviceId = "WARN">
         <name>HAR_PAL_DEVICE_OUT_SPEAKER_V_WARN</name>

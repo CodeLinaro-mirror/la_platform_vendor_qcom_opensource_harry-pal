@@ -1075,7 +1075,10 @@ void XMLCALL start_element(void *userData, const char *name, const char **attr) 
                 else
                     Low_Latency_Period_Size = atoi(attr[i + 1]);
             } else if (strcmp(attr[i], "period_count") == 0) {
-                Period_Count = atoi(attr[i + 1]);
+                if (strcmp(current_device->AudioDeviceId, "WELCOME_SEQUENCE") == 0)
+                    DB_Period_Count = atoi(attr[i + 1]);
+                else
+                    LL_Period_Count = atoi(attr[i + 1]);
             }
         }
     }
@@ -1267,25 +1270,19 @@ PlatformAudioDevices load_default_config(const char* device) {
 }
 
 void get_buffer_size(pal_stream_element_t* handler, struct pal_stream_attributes *sattr) {
+    if(!handler) {
+        HAR_PAL_ERR(LOG_TAG,"%s: Handler is NULL",__func__);
+        return;
+    }
 
     int channels = sattr->out_media_config.ch_info.channels;
     int bytes_per_sample = audio_bytes_per_sample((audio_format_t)sattr->format);
     if (handler == &welcome_handler) {
-        handler->outBufCfg.buf_count = Period_Count;
+        handler->outBufCfg.buf_count = DB_Period_Count;
         handler->outBufCfg.buf_size = Deep_Buffer_Period_Size * bytes_per_sample * channels;
-    } else if (handler == &no_asil_handler) {
-        handler->outBufCfg.buf_count = Period_Count;
-        handler->outBufCfg.buf_size = Low_Latency_Period_Size * bytes_per_sample * channels;
-    } else if (handler == &road_adas_handler) {
-        handler->outBufCfg.buf_count = Period_Count;
-        handler->outBufCfg.buf_size = Low_Latency_Period_Size * bytes_per_sample * channels;
-    } else if (handler == &asil_handler) {
-        handler->outBufCfg.buf_count = Period_Count;
-        handler->outBufCfg.buf_size = Low_Latency_Period_Size * bytes_per_sample * channels;
     } else {
-        HAR_PAL_ERR(LOG_TAG,"%s: Invalid handler. Setting default buffer config",__func__);
-        handler->outBufCfg.buf_count = DEFAULT_BUF_COUNT;
-        handler->outBufCfg.buf_size = DEFAULT_BUF_SIZE;
+        handler->outBufCfg.buf_count = LL_Period_Count;
+        handler->outBufCfg.buf_size = Low_Latency_Period_Size * bytes_per_sample * channels;
     }
 }
 

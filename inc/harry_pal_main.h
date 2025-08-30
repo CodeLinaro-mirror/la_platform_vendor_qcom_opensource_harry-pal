@@ -331,7 +331,8 @@ size_t idHandlerCount = 0;   //Number of registered IDs
 
 uint32_t Low_Latency_Period_Size = 960;
 uint32_t Deep_Buffer_Period_Size = 1920;
-uint32_t Period_Count = 4;
+uint32_t LL_Period_Count = 4;
+uint32_t DB_Period_Count = 8;
 int dump_enabled = 0;
 
 bool parse_device_xml();

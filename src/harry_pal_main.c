@@ -1481,7 +1481,9 @@ int32_t Open_Device(PlatformAudioDevices *har_device) {
         ret = pal_stream_start(stream_handler->pal_stream_handle);
         ATRACE_END();
         place_markers("kpi_value pal_stream_start DONE");
-        set_volume(har_device, har_device->volume);
+        if (outDeviceId != HAR_PAL_DEVICE_OUT_SPEAKER_WS) {
+            set_volume(har_device, har_device->volume);
+        }
     }
     if (ret == 0)
            stream_started = 1;

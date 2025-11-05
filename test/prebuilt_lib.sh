@@ -10,7 +10,9 @@
 ####################################################################
 
 HARRY_DIR=$1
-VENDOR_DIR="${HARRY_DIR}../../../../../out/target/product/gen4_gvm_cdcsdv/vendor/lib64"
+LUNCH=$2
+VENDOR_DIR="${HARRY_DIR}../../../../../out/target/product/${LUNCH}/vendor/lib64"
+echo "LUNCH = ${LUNCH}"
 echo "HARRY_DIR = ${HARRY_DIR}"
 echo "VENDOR_DIR = ${VENDOR_DIR}"
 

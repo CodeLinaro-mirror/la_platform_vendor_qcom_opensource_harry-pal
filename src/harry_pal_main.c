@@ -807,6 +807,7 @@ uint32_t handleSpkrGrpAvailability(VehicleDataType vehicledatatype) {
 
         if (zones) {
             int bitmask = get_bit_mask(zones, count);
+            HAR_PAL_INFO(LOG_TAG, "speaker bitmask = %d", bitmask);
             spkr_grp_avail = bitmask; //caching bitmask value
             if (bitmask == 0) {
                 HAR_PAL_ERR(LOG_TAG,"%s: None of the speaker group available",__func__);
@@ -840,13 +841,14 @@ uint32_t handleSpkrGrpAvailability(VehicleDataType vehicledatatype) {
             effect_payload->payloadSize = sizeof(pal_effect_custom_payload_t) + sizeof(pal_awx_data_t);
             customPayload->paramId = AWX_SPATIALIZATION;
 
-            //using pal_gef_rw_param API for get_param
-            status = pal_gef_rw_param(PAL_PARAM_ID_UIEFFECT, (void *) pal_payload, payload_size,
-                            pal_device, PAL_STREAM_PLAYBACK_BUS, GEF_PARAM_READ, NULL);
+            //using pal_stream_get_param API for get_param
+            status = pal_stream_get_param(phandler->pal_stream_handle,PAL_PARAM_ID_UIEFFECT, (void *) pal_payload);
 
             if (status != 0) {
                HAR_PAL_ERR(LOG_TAG,"%s: get param failed with error: %d\n",__func__, status);
                goto cleanup;
+            } else {
+                HAR_PAL_DBG(LOG_TAG," get param successful");
             }
 
             pal_awx_data_t* retrievedData = (pal_awx_data_t*)customPayload->data;
@@ -1941,6 +1943,7 @@ uint32_t set_spatialization(PlatformAudioDevices *har_device, Spatialization val
 uint32_t set_custom_parameter(const char *id, VehicleDataType vehicledatatype) {
 
     uint32_t result = 0;
+    pal_stream_element_t* phandler = NULL;
 
     if (id == NULL || strlen(id) == 0) {
        HAR_PAL_ERR(LOG_TAG,"Invalid ID");
@@ -1963,6 +1966,27 @@ uint32_t set_custom_parameter(const char *id, VehicleDataType vehicledatatype) {
 
         dumpsys(dump_details);
     }
+
+    //ensure stream handle is available before set custom params and gaurded against race conditions during bootup.
+    for (int busid = HAR_PAL_DEVICE_OUT_SPEAKER_WS; busid <= HAR_PAL_DEVICE_OUT_SPEAKER_S_WARN; busid++) {
+        phandler = get_stream_handler(busid);
+        if (phandler != NULL && phandler->pal_stream_handle != NULL) {
+            HAR_PAL_DBG(LOG_TAG, "phandler %p pal_stream_handle %p", phandler, phandler->pal_stream_handle);
+            //breaking for the first active instance of handler because all graph has same awx module.
+            break;
+        }
+    }
+
+    if (phandler == NULL || phandler->pal_stream_handle == NULL) {
+        HAR_PAL_ERR(LOG_TAG, "No valid stream handle found");
+        return -1;
+    }
+
+    if (phandler == &asil_handler) {
+        HAR_PAL_DBG(LOG_TAG, "skip set_custom_parameter for ASIL Bus");
+        return -1;
+    }
+
     //Lookup the ID in the lookup table
     for (size_t i =0; i < idHandlerCount; i++) {
         if (strcmp(id, idHandlerMap[i].id) == 0) {

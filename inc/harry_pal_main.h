@@ -351,3 +351,6 @@ int32_t set_volume(PlatformAudioDevices *har_device, float volume);
 float get_volume(PlatformAudioDevices *har_device);
 uint32_t set_spatialization(PlatformAudioDevices *har_device, Spatialization value);
 uint32_t set_custom_parameter(const char *id, VehicleDataType vehicledatatype);
+
+static inline int get_agm_status(void) { return 0; }
+static inline int set_agm_status(int status) { (void)status; return 0; }

@@ -840,9 +840,8 @@ uint32_t handleSpkrGrpAvailability(VehicleDataType vehicledatatype) {
             effect_payload->payloadSize = sizeof(pal_effect_custom_payload_t) + sizeof(pal_awx_data_t);
             customPayload->paramId = AWX_SPATIALIZATION;
 
-            //using pal_gef_rw_param API for get_param
-            status = pal_gef_rw_param(PAL_PARAM_ID_UIEFFECT, (void *) pal_payload, payload_size,
-                            pal_device, PAL_STREAM_PLAYBACK_BUS, GEF_PARAM_READ, NULL);
+            //using pal_stream_get_param API for get_param
+            status = pal_stream_get_param(phandler->pal_stream_handle, PAL_PARAM_ID_UIEFFECT, (void *) pal_payload);
 
             if (status != 0) {
                HAR_PAL_ERR(LOG_TAG,"%s: get param failed with error: %d\n",__func__, status);
@@ -1320,6 +1319,9 @@ int32_t Open_Device(PlatformAudioDevices *har_device) {
     isLocked = 1;
 
     if (pal_init_status == 0) {
+        ret = set_agm_status(0);
+        if(ret)
+            HAR_PAL_ERR(LOG_TAG,"set_agm_status got failed ret = %d", ret);
         ret = wait_for_snd_card_to_online();
         if (ret) {
             HAR_PAL_ERR(LOG_TAG,"Not found any SND card online\n");
@@ -1341,10 +1343,6 @@ int32_t Open_Device(PlatformAudioDevices *har_device) {
         }
         place_markers("kpi_value pal_init DONE");
         pal_init_status++;
-
-        ret = set_agm_status(0);
-        if(ret)
-            HAR_PAL_ERR(LOG_TAG,"set_agm_status got failed ret = %d", ret);
     }
 
     HAR_PAL_DBG(LOG_TAG, "%s Enter, pal_init_status =%d ",__func__, pal_init_status);
@@ -1654,6 +1652,10 @@ ssize_t try_play_bytes(PlatformAudioDevices *har_device, void *buffer, int bytes
     palBuffer.offset = 0;
 
     HAR_PAL_VERBOSE(LOG_TAG, "%s Buffer Size = %d for device id=%d", __func__, bytes, har_device->device_id);
+    if (get_agm_status()) {
+        HAR_PAL_ERR(LOG_TAG,"%s: Agm is crashed.", __func__);
+        return -EINVAL;
+    }
     ATRACE_BEGIN("HAR_PAL: pal_stream_write");
     ret = pal_stream_write(stream_handler->pal_stream_handle, &palBuffer);
     ATRACE_END();
@@ -1941,6 +1943,7 @@ uint32_t set_spatialization(PlatformAudioDevices *har_device, Spatialization val
 uint32_t set_custom_parameter(const char *id, VehicleDataType vehicledatatype) {
 
     uint32_t result = 0;
+    pal_stream_element_t* phandler = NULL;
 
     if (id == NULL || strlen(id) == 0) {
        HAR_PAL_ERR(LOG_TAG,"Invalid ID");
@@ -1963,6 +1966,27 @@ uint32_t set_custom_parameter(const char *id, VehicleDataType vehicledatatype) {
 
         dumpsys(dump_details);
     }
+
+    //ensure stream handle is available before set custom params and gaurded against race conditions during bootup.
+    for (int busid = HAR_PAL_DEVICE_OUT_SPEAKER_WS; busid <= HAR_PAL_DEVICE_OUT_SPEAKER_S_WARN; busid++) {
+        phandler = get_stream_handler(busid);
+        if (phandler != NULL && phandler->pal_stream_handle != NULL) {
+            HAR_PAL_DBG(LOG_TAG, "phandler %p pal_stream_handle %p", phandler, phandler->pal_stream_handle);
+            //breaking for the first active instance of handler because all graph has same awx module.
+            break;
+        }
+    }
+
+    if (phandler == NULL || phandler->pal_stream_handle == NULL) {
+        HAR_PAL_ERR(LOG_TAG, "No valid stream handle found");
+        return -1;
+    }
+
+    if (phandler == &asil_handler) {
+        HAR_PAL_DBG(LOG_TAG, "skip set_custom_parameter for ASIL Bus");
+        return -1;
+    }
+
     //Lookup the ID in the lookup table
     for (size_t i =0; i < idHandlerCount; i++) {
         if (strcmp(id, idHandlerMap[i].id) == 0) {

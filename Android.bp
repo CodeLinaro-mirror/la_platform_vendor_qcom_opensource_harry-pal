@@ -1,0 +1,102 @@
+prebuilt_etc {
+    name: "device_manager.xml",
+    src: "device_manager.xml",
+    sub_dir: "",
+    installable: true,
+    vendor: true,
+    enabled: select(soong_config_variable("qti", "AUDIO_SDV_APEX_ENABLED"), {
+        "true": true,
+        default: false,
+    }),
+}
+
+cc_library_shared {
+    name: "libhar-pal",
+    owner: "qti",
+    vendor: true,
+
+    srcs: ["src/harry_pal_main.c"],
+
+    arch: {
+        arm: { enabled: false },
+    },
+
+    cflags: [
+        "-D_ANDROID_",
+        "-Wall", "-Wno-unused-function",
+        "-Wno-unused-variable",
+        "-DHAR_PAL_DEVICE=\"/vendor/etc/device_manager.xml\"",
+    ],
+    header_libs: [
+        "libarpal_headers",
+    ],
+    include_dirs: [
+        "vendor/qcom/opensource/harry-pal",
+        "vendor/qcom/opensource/pal/inc",
+        "system/media/audio/include",
+        "system/media/audio_route/include",
+        "external/expat/lib",
+        "system/media/audio_utils/include",
+    ],
+    shared_libs: [
+        "libcutils",
+        "libdl",
+        "libexpat",
+        "liblog",
+        "libar-pal",
+    ],
+
+    required: ["device_manager.xml"],
+
+    apex_available: [
+        "//apex_available:platform",
+        "//apex_available:anyapex",
+    ],
+    enabled: select(soong_config_variable("qti", "AUDIO_SDV_APEX_ENABLED"), {
+        "true": true,
+        default: false,
+    }),
+
+}
+
+cc_binary {
+    name: "HarPalTest",
+    owner: "qti",
+    vendor: true,
+
+    srcs: [
+      "test/harry_pal_test.c",
+    ],
+
+    shared_libs: [
+        "libhar-pal",
+        "libexpat",
+        "libcutils",
+        "liblog",
+    ],
+    cflags: [
+        "-Wno-tautological-compare",
+        "-Wno-macro-redefined",
+    ],
+    include_dirs: [
+        "vendor/qcom/opensource/pal/inc",
+        "system/media/audio/include",
+        "system/media/audio_route/include",
+        "external/expat/lib",
+    ],
+    required: ["bike_bell"],
+    enabled: select(soong_config_variable("qti", "AUDIO_SDV_APEX_ENABLED"), {
+        "true": true,
+        default: false,
+    }),
+}
+
+prebuilt_etc {
+    name: "bike_bell",
+    src: "test/bike_bell.wav",
+    vendor: true,
+    enabled: select(soong_config_variable("qti", "AUDIO_SDV_APEX_ENABLED"), {
+        "true": true,
+        default: false,
+    }),
+}
